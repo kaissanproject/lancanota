@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corrigir Prova - Lança Notas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="header">
+        <div class="container">
+            <h1>Lança Notas</h1>
+            <a href="/dashboard" class="button button-secondary">Voltar ao Dashboard</a>
+        </div>
+    </header>
+
+    <main class="container">
+        <div id="correcao-container">
+            <h2 id="prova-titulo">Carregando Prova...</h2>
+            
+            <div id="setup-correcao">
+                <div class="form-group">
+                    <label for="nome-aluno">Nome do Aluno</label>
+                    <input type="text" id="nome-aluno" class="form-control" placeholder="Digite o nome do aluno">
+                </div>
+                <button id="iniciar-correcao-btn" class="button button-primary">Iniciar Correção</button>
+            </div>
+
+            <div id="interface-questao" class="hidden">
+                <!-- Conteúdo da questão será inserido aqui pelo JavaScript -->
+            </div>
+
+            <div id="resultado-correcao" class="hidden">
+                <h3>Correção Finalizada!</h3>
+                <p id="resultado-texto"></p>
+                <button id="corrigir-outra-btn" class="button button-secondary">Corrigir Outra Prova do Mesmo Aluno</button>
+                 <a href="/dashboard" class="button button-primary">Finalizar</a>
+            </div>
+        </div>
+    </main>
+    
+    <script src="{{ url_for('static', filename='correcao.js') }}"></script>
+</body>
+</html>
