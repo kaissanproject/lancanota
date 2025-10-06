@@ -1,92 +1,75 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Lança Notas</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <header class="header">
-        <div class="container">
-            <h1>Lança Notas</h1>
-            <button id="logout-btn" class="button button-secondary">Sair</button>
-        </div>
-    </header>
+{% extends "layout.html" %}
 
-    <main class="container">
-        <div class="dashboard-header">
-            <h2>Minhas Provas</h2>
-            <a href="/editor" class="button button-primary">Criar Nova Prova</a>
-        </div>
-        <div id="provas-lista" class="provas-container">
-            <p>Carregando provas...</p>
-        </div>
-    </main>
+{% block title %}Dashboard - Lança Notas{% endblock %}
 
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const logoutBtn = document.getElementById('logout-btn');
-            const provasLista = document.getElementById('provas-lista');
+{% block content %}
+<div class="dashboard-header">
+    <h2>Minhas Provas</h2>
+    <a href="/editor" class="button button-primary">Criar Nova Prova</a>
+</div>
+<div id="provas-lista" class="provas-container">
+    <p>Carregando provas...</p>
+</div>
+{% endblock %}
 
-            logoutBtn.addEventListener('click', () => {
-                fetch('/api/logout', { method: 'POST' })
-                    .then(() => window.location.href = '/');
-            });
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const provasLista = document.getElementById('provas-lista');
 
-            fetch('/api/provas')
-                .then(response => response.json())
-                .then(provas => {
-                    provasLista.innerHTML = '';
-                    if (provas.length === 0) {
-                        provasLista.innerHTML = '<p>Você ainda não criou nenhuma prova. Clique em "Criar Nova Prova" para começar.</p>';
-                    } else {
-                        provas.forEach(prova => {
-                            const provaCard = document.createElement('div');
-                            provaCard.className = 'prova-card';
-                            provaCard.innerHTML = `
-                                <h3>${escapeHTML(prova.titulo)}</h3>
-                                <div class="button-group">
-                                    <a href="/editor?id=${prova.id}" class="button button-secondary">Editar</a>
-                                    <a href="/api/provas/${prova.id}/pdf" class="button button-secondary" target="_blank">Gerar PDF</a>
-                                    <a href="/api/provas/${prova.id}/gabarito" class="button button-secondary" target="_blank">Gabarito</a>
-                                    <button class="button button-success" onclick="iniciarCorrecao('${prova.id}')">Corrigir</button>
-                                    <button class="button button-danger" onclick="excluirProva('${prova.id}')">Excluir</button>
-                                </div>
-                            `;
-                            provasLista.appendChild(provaCard);
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Erro ao buscar provas:', error);
-                    provasLista.innerHTML = '<p>Ocorreu um erro ao carregar suas provas. Tente recarregar a página.</p>';
+    fetch('/api/provas')
+        .then(response => response.json())
+        .then(provas => {
+            provasLista.innerHTML = '';
+            if (provas.length === 0) {
+                provasLista.innerHTML = '<p>Você ainda não criou nenhuma prova. Clique em "Criar Nova Prova" para começar.</p>';
+            } else {
+                provas.forEach(prova => {
+                    const provaCard = document.createElement('div');
+                    provaCard.className = 'prova-card';
+                    provaCard.innerHTML = `
+                        <h3>${escapeHTML(prova.titulo)}</h3>
+                        <div class="button-group">
+                            <a href="/editor?id=${prova.id}" class="button button-secondary">Editar</a>
+                            <a href="/api/provas/${prova.id}/pdf" class="button button-secondary" target="_blank">PDF</a>
+                            <a href="/api/provas/${prova.id}/gabarito" class="button button-secondary" target="_blank">Gabarito</a>
+                            <button class="button button-success" onclick="iniciarCorrecao('${prova.id}')">Corrigir</button>
+                            <button class="button button-danger" onclick="excluirProva('${prova.id}')">Excluir</button>
+                        </div>
+                    `;
+                    provasLista.appendChild(provaCard);
                 });
-        });
-
-        function excluirProva(provaId) {
-            if (confirm('Tem certeza de que deseja excluir esta prova? Esta ação não pode ser desfeita.')) {
-                fetch(`/api/provas/${provaId}`, { method: 'DELETE' })
-                    .then(response => {
-                        if (response.ok) {
-                            window.location.reload();
-                        } else {
-                            alert('Erro ao excluir a prova.');
-                        }
-                    });
             }
-        }
+        })
+        .catch(error => {
+            console.error('Erro ao buscar provas:', error);
+            provasLista.innerHTML = '<p>Ocorreu um erro ao carregar suas provas. Tente recarregar a página.</p>';
+        });
+});
 
-        function iniciarCorrecao(provaId) {
-            window.location.href = `/correcao?id=${provaId}`;
-        }
+function excluirProva(provaId) {
+    if (confirm('Tem certeza de que deseja excluir esta prova? Esta ação não pode ser desfeita.')) {
+        fetch(`/api/provas/${provaId}`, { method: 'DELETE' })
+            .then(response => {
+                if (response.ok) {
+                    window.location.reload();
+                } else {
+                    alert('Erro ao excluir a prova.');
+                }
+            });
+    }
+}
 
-        function escapeHTML(str) {
-            const p = document.createElement('p');
-            p.textContent = str;
-            return p.innerHTML;
-        }
-    </script>
-</body>
-</html>
+function iniciarCorrecao(provaId) {
+    window.location.href = `/correcao?id=${provaId}`;
+}
+
+function escapeHTML(str) {
+    if (!str) return '';
+    const p = document.createElement('p');
+    p.textContent = str;
+    return p.innerHTML;
+}
+</script>
+{% endblock %}
 
