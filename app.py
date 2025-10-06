@@ -16,12 +16,8 @@ app.secret_key = os.urandom(24)
 # --- Configuração do Google Sheets (MÉTODO ATUALIZADO) ---
 def get_sheets():
     """Conecta-se à API do Google Sheets e retorna as planilhas."""
-    # gspread agora usa google-auth para encontrar as credenciais
     gc = gspread.service_account(filename="google_credentials.json")
-    
-    # Abre a planilha pelo nome. Certifique-se de que o nome aqui é o mesmo da sua planilha.
     sheet = gc.open("LancaNotas-DB") 
-    
     users_sheet = sheet.worksheet("usuarios")
     provas_sheet = sheet.worksheet("provas")
     return users_sheet, provas_sheet
@@ -150,20 +146,14 @@ def create_prova():
     data = request.json
     
     _, provas_sheet = get_sheets()
-    new_id = str(uuid.uuid4()) # Gera um ID único
-    
-    # Converte o dicionário de questões para uma string JSON
+    new_id = str(uuid.uuid4())
     questoes_str = json.dumps(data.get('questoes', []))
     
     provas_sheet.append_row([
-        new_id,
-        user_email,
-        data.get('titulo', ''),
-        data.get('cabecalho', ''),
-        questoes_str
+        new_id, user_email, data.get('titulo', ''),
+        data.get('cabecalho', ''), questoes_str
     ])
     
-    # Retorna o objeto criado, incluindo o novo ID
     data['id'] = new_id
     return jsonify(data), 201
 
@@ -178,27 +168,38 @@ def get_provas():
     all_provas = provas_sheet.get_all_records()
     user_provas = [p for p in all_provas if p['user_email'] == user_email]
 
-    # Converte a string de questões de volta para um objeto JSON
     for prova in user_provas:
         prova['questoes'] = json.loads(prova['questoes']) if prova['questoes'] else []
 
     return jsonify(user_provas)
+
+# FUNÇÃO CORRIGIDA - busca os dados de forma mais segura
+def get_prova_data_by_id(prova_id, user_email):
+    """Busca os dados de uma prova específica e verifica a permissão do usuário."""
+    _, provas_sheet = get_sheets()
+    cell = provas_sheet.find(prova_id, in_column=1)
+    if not cell:
+        return None
+    
+    # Busca a linha inteira para verificar o e-mail
+    row_values = provas_sheet.row_values(cell.row)
+    if row_values[1] != user_email: # Coluna 2 (índice 1) é o user_email
+        return None
+        
+    headers = provas_sheet.row_values(1)
+    prova_data = dict(zip(headers, row_values))
+    prova_data['questoes'] = json.loads(prova_data['questoes']) if prova_data['questoes'] else []
+    return prova_data
 
 @app.route('/api/provas/<prova_id>', methods=['GET'])
 def get_prova_by_id(prova_id):
     if 'user_email' not in session:
         return jsonify({"error": "Usuário não autorizado"}), 403
         
-    user_email = session['user_email']
-    _, provas_sheet = get_sheets()
-    
-    cell = provas_sheet.find(prova_id, in_column=1)
-    if not cell or provas_sheet.cell(cell.row, 2).value != user_email:
-        return jsonify({"error": "Prova não encontrada"}), 404
+    prova_data = get_prova_data_by_id(prova_id, session['user_email'])
+    if not prova_data:
+        return jsonify({"error": "Prova não encontrada ou não autorizada"}), 404
         
-    prova_data = provas_sheet.get_all_records()[cell.row - 2]
-    prova_data['questoes'] = json.loads(prova_data['questoes']) if prova_data['questoes'] else []
-    
     return jsonify(prova_data)
 
 @app.route('/api/provas/<prova_id>', methods=['PUT'])
@@ -216,7 +217,6 @@ def update_prova(prova_id):
     data = request.json
     questoes_str = json.dumps(data.get('questoes', []))
     
-    # Atualiza as células na linha encontrada
     provas_sheet.update_cell(cell.row, 3, data.get('titulo', ''))
     provas_sheet.update_cell(cell.row, 4, data.get('cabecalho', ''))
     provas_sheet.update_cell(cell.row, 5, questoes_str)
@@ -238,26 +238,21 @@ def delete_prova(prova_id):
     provas_sheet.delete_rows(cell.row)
     return jsonify({"success": True}), 200
 
+# ROTA CORRIGIDA - usa a nova função para buscar os dados
 @app.route('/api/provas/<prova_id>/pdf')
 @app.route('/api/provas/<prova_id>/gabarito')
 def get_pdf(prova_id):
     if 'user_email' not in session:
         return "Não autorizado", 403
 
-    user_email = session['user_email']
-    _, provas_sheet = get_sheets()
-    
-    cell = provas_sheet.find(prova_id, in_column=1)
-    if not cell or provas_sheet.cell(cell.row, 2).value != user_email:
-        return "Prova não encontrada", 404
-    
-    prova_data = provas_sheet.get_all_records()[cell.row - 2]
-    prova_data['questoes'] = json.loads(prova_data['questoes']) if prova_data['questoes'] else []
+    prova_data = get_prova_data_by_id(prova_id, session['user_email'])
+    if not prova_data:
+        return "Prova não encontrada ou não autorizada", 404
     
     is_gabarito = 'gabarito' in request.path
     pdf_buffer = generate_pdf_base(prova_data, is_gabarito=is_gabarito)
     
-    file_name = f"{'gabarito' if is_gabarito else 'prova'}_{prova_id}.pdf"
+    file_name = f"{'gabarito' if is_gabarito else 'prova'}_{prova_id[:8]}.pdf"
     return send_file(pdf_buffer, as_attachment=True, download_name=file_name, mimetype='application/pdf')
 
 # --- Inicia o Servidor ---
