@@ -13,11 +13,13 @@ import io
 app = Flask(__name__)
 app.secret_key = os.urandom(24)
 
-# --- Configuração do Google Sheets (VERSÃO FINAL E MAIS ESTÁVEL) ---
+# --- Configuração do Google Sheets (VERSÃO DEFINITIVA) ---
 def get_sheets():
     """Conecta-se à API do Google Sheets e retorna as planilhas."""
     try:
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+        # Escopos corretos e atualizados para a API V4
+        scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        
         creds_json_str = os.getenv('GOOGLE_CREDENTIALS_JSON')
         if not creds_json_str:
             if os.path.exists("google_credentials.json"):
@@ -25,9 +27,11 @@ def get_sheets():
                     creds_json_str = f.read()
             else:
                 raise ValueError("Credenciais do Google não encontradas.")
+
         creds_dict = json.loads(creds_json_str)
         creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
         client = gspread.authorize(creds)
+        
         spreadsheet = client.open("LancaNotas-DB")
         users_sheet = spreadsheet.worksheet("usuarios")
         provas_sheet = spreadsheet.worksheet("provas")
@@ -38,7 +42,7 @@ def get_sheets():
         print(f"ERRO CRÍTICO ao conectar com Google Sheets: {e}")
         return None, None, None, None
 
-# --- Funções de Geração de PDF ---
+# --- Funções de Geração de PDF (sem alterações) ---
 def generate_pdf_base(prova_data, is_gabarito=False):
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
@@ -170,15 +174,17 @@ def login():
             if user.get('senha', '').strip() == senha_input:
                 session['user_email'] = email_input
                 return jsonify({"success": True})
-            else:
+            else: # Email correto, senha errada
                 return jsonify({"error": "Credenciais inválidas"}), 401
     
-    return jsonify({"error": "Credenciais inválidas"}), 401
+    return jsonify({"error": "Credenciais inválidas"}), 401 # Email não encontrado
 
 @app.route('/api/logout', methods=['POST'])
 def logout():
     session.pop('user_email', None)
     return jsonify({"success": True})
+
+# --- DEMAIS ROTAS DA API (sem alterações) ---
 
 @app.route('/api/provas', methods=['GET', 'POST'])
 def handle_provas():
