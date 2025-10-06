@@ -18,32 +18,24 @@ def get_sheets():
     """Conecta-se à API do Google Sheets e retorna as planilhas."""
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        
-        # A variável de ambiente GOOGLE_CREDENTIALS_JSON é a forma segura de usar no Render
         creds_json_str = os.getenv('GOOGLE_CREDENTIALS_JSON')
-        
         if not creds_json_str:
-            # Fallback para desenvolvimento local (se o arquivo existir)
             if os.path.exists("google_credentials.json"):
                 with open("google_credentials.json", "r") as f:
                     creds_json_str = f.read()
             else:
-                raise ValueError("Credenciais do Google não encontradas. Defina GOOGLE_CREDENTIALS_JSON ou adicione o arquivo 'google_credentials.json'.")
-
+                raise ValueError("Credenciais do Google não encontradas.")
         creds_dict = json.loads(creds_json_str)
         creds = Credentials.from_service_account_info(creds_dict, scopes=scope)
         client = gspread.authorize(creds)
-        
         spreadsheet = client.open("LancaNotas-DB")
         users_sheet = spreadsheet.worksheet("usuarios")
         provas_sheet = spreadsheet.worksheet("provas")
         resultados_sheet = spreadsheet.worksheet("resultados")
         banco_questoes_sheet = spreadsheet.worksheet("banco_questoes")
-        
         return users_sheet, provas_sheet, resultados_sheet, banco_questoes_sheet
     except Exception as e:
         print(f"ERRO CRÍTICO ao conectar com Google Sheets: {e}")
-        # Retorna None para que as rotas possam falhar de forma controlada
         return None, None, None, None
 
 # --- Funções de Geração de PDF ---
@@ -56,7 +48,6 @@ def generate_pdf_base(prova_data, is_gabarito=False):
     if is_gabarito:
         p.setFont("Helvetica-Bold", 14)
         p.drawCentredString(width / 2.0, height - 1.25 * inch, "GABARITO")
-
     p.setFont("Helvetica", 12)
     y_position = height - 1.75 * inch
     header_text = prova_data.get('cabecalho', '')
@@ -148,25 +139,40 @@ def correcao():
 def register():
     users_sheet, _, _, _ = get_sheets()
     if not users_sheet: return jsonify({"error": "Erro no servidor ao conectar com a base de dados."}), 500
+    
     data = request.json
-    email, senha = data.get('email'), data.get('senha')
-    if not email or not senha: return jsonify({"error": "Email e senha são obrigatórios"}), 400
-    if users_sheet.find(email): return jsonify({"error": "Usuário já existe"}), 409
-    users_sheet.append_row([email, senha])
+    email_input = data.get('email', '').lower().strip()
+    senha_input = data.get('senha', '').strip()
+
+    if not email_input or not senha_input: 
+        return jsonify({"error": "Email e senha são obrigatórios"}), 400
+
+    all_users = users_sheet.get_all_records()
+    for user in all_users:
+        if user.get('email', '').lower().strip() == email_input:
+            return jsonify({"error": "Usuário já existe"}), 409
+        
+    users_sheet.append_row([email_input, senha_input])
     return jsonify({"success": True}), 201
 
 @app.route('/api/login', methods=['POST'])
 def login():
     users_sheet, _, _, _ = get_sheets()
     if not users_sheet: return jsonify({"error": "Erro no servidor ao conectar com a base de dados."}), 500
+    
     data = request.json
-    email, senha = data.get('email'), data.get('senha')
-    user_row = users_sheet.find(email)
-    if user_row:
-        user_data = users_sheet.row_values(user_row.row)
-        if user_data[1] == senha:
-            session['user_email'] = email
-            return jsonify({"success": True})
+    email_input = data.get('email', '').lower().strip()
+    senha_input = data.get('senha', '').strip()
+
+    all_users = users_sheet.get_all_records()
+    for user in all_users:
+        if user.get('email', '').lower().strip() == email_input:
+            if user.get('senha', '').strip() == senha_input:
+                session['user_email'] = email_input
+                return jsonify({"success": True})
+            else:
+                return jsonify({"error": "Credenciais inválidas"}), 401
+    
     return jsonify({"error": "Credenciais inválidas"}), 401
 
 @app.route('/api/logout', methods=['POST'])
@@ -185,10 +191,8 @@ def handle_provas():
     if request.method == 'POST':
         data = request.json
         nova_prova = {
-            "id_prova": str(uuid.uuid4()),
-            "user_email": session['user_email'],
-            "titulo": data.get('titulo'),
-            "cabecalho": data.get('cabecalho'),
+            "id_prova": str(uuid.uuid4()), "user_email": session['user_email'],
+            "titulo": data.get('titulo'), "cabecalho": data.get('cabecalho'),
             "questoes": json.dumps(data.get('questoes', []))
         }
         provas_sheet.append_row(list(nova_prova.values()))
