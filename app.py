@@ -10,7 +10,6 @@ from reportlab.lib.units import inch
 
 # --- Configuração Inicial ---
 app = Flask(__name__)
-# Chave secreta para gerenciar sessões de login
 app.secret_key = os.urandom(24) 
 
 # --- Configuração do Google Sheets (ATUALIZADO) ---
@@ -20,14 +19,13 @@ def get_sheets():
     sheet = gc.open("LancaNotas-DB") 
     users_sheet = sheet.worksheet("usuarios")
     provas_sheet = sheet.worksheet("provas")
-    # Adicionamos a nova planilha de resultados
     resultados_sheet = sheet.worksheet("resultados")
-    return users_sheet, provas_sheet, resultados_sheet
+    # Adicionamos a nova planilha do banco de questões
+    banco_questoes_sheet = sheet.worksheet("banco_questoes")
+    return users_sheet, provas_sheet, resultados_sheet, banco_questoes_sheet
 
 # --- Funções Auxiliares para PDF ---
-
 def draw_multiline_text(canvas, text, x, y, max_width):
-    """Desenha texto com múltiplas linhas e retorna o objeto de texto e a contagem de linhas."""
     text_object = canvas.beginText(x, y)
     line_count = 0
     for line in text.splitlines():
@@ -49,7 +47,6 @@ def draw_multiline_text(canvas, text, x, y, max_width):
     return text_object, line_count
 
 def generate_pdf_base(prova_data):
-    """Gera o PDF da prova completa para o aluno."""
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
@@ -72,12 +69,10 @@ def generate_pdf_base(prova_data):
             p.showPage()
             p.setFont("Helvetica", 11)
             y_position = height - margin
-        
         enunciado = f"{q_num}. {questao['enunciado']}"
         text_obj, line_count = draw_multiline_text(p, enunciado, margin, y_position, width - 2 * margin)
         p.drawText(text_obj)
         y_position -= (line_count) * 14
-
         if questao['tipo'] == 'multipla_escolha':
             letras = ['a', 'b', 'c', 'd', 'e']
             for i, alt in enumerate(questao['alternativas']):
@@ -88,7 +83,6 @@ def generate_pdf_base(prova_data):
             y_position -= 20
         elif questao['tipo'] == 'dissertativa':
             y_position -= 1 * inch
-        
         y_position -= 0.5 * inch
         q_num += 1
     p.save()
@@ -96,12 +90,10 @@ def generate_pdf_base(prova_data):
     return buffer
 
 def generate_gabarito_table_pdf(prova_data):
-    """Gera um PDF de gabarito em formato de tabela."""
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
     margin = 0.75 * inch
-
     p.setFont("Helvetica-Bold", 16)
     p.drawString(margin, height - margin, "GABARITO OFICIAL")
     p.setFont("Helvetica", 14)
@@ -118,10 +110,6 @@ def generate_gabarito_table_pdf(prova_data):
     for questao in questoes:
         if y_position < margin:
             p.showPage()
-            p.setFont("Helvetica-Bold", 12)
-            p.drawString(margin, height - margin, "Questão")
-            p.drawString(margin + 1.5 * inch, height - margin, "Resposta")
-            p.line(margin, height - margin - 8, width - margin, height - margin - 8)
             y_position = height - margin - 30
             p.setFont("Helvetica", 11)
         p.drawString(margin, y_position, f"{q_num}.")
@@ -134,36 +122,32 @@ def generate_gabarito_table_pdf(prova_data):
     buffer.seek(0)
     return buffer
 
-# --- Rotas para Servir as Páginas HTML e Autenticação ---
+# --- Rotas das Páginas ---
 @app.route('/')
 def index():
-    if 'user_email' in session:
-        return redirect(url_for('dashboard'))
+    if 'user_email' in session: return redirect(url_for('dashboard'))
     return render_template('index.html')
 
 @app.route('/dashboard')
 def dashboard():
-    if 'user_email' not in session:
-        return redirect(url_for('index'))
+    if 'user_email' not in session: return redirect(url_for('index'))
     return render_template('dashboard.html')
 
 @app.route('/editor')
 def editor():
-    if 'user_email' not in session:
-        return redirect(url_for('index'))
+    if 'user_email' not in session: return redirect(url_for('index'))
     return render_template('editor.html')
 
-# --- NOVA ROTA PARA A PÁGINA DE CORREÇÃO ---
 @app.route('/correcao')
 def correcao():
-    if 'user_email' not in session:
-        return redirect(url_for('index'))
+    if 'user_email' not in session: return redirect(url_for('index'))
     return render_template('correcao.html')
 
+# --- Rotas de API (Autenticação) ---
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
-    users_sheet, _, _ = get_sheets()
+    users_sheet, _, _, _ = get_sheets()
     users = users_sheet.get_all_records()
     for user in users:
         if user['email'] == data['email'] and user['senha'] == data['password']:
@@ -174,11 +158,9 @@ def login():
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.json
-    users_sheet, _, _ = get_sheets()
-    users = users_sheet.get_all_records()
-    if any(user['email'] == data['email'] for user in users):
+    users_sheet, _, _, _ = get_sheets()
+    if any(user['email'] == data['email'] for user in users_sheet.get_all_records()):
         return jsonify({"error": "Este e-mail já está cadastrado"}), 409
-    
     users_sheet.append_row([data['email'], data['password']])
     session['user_email'] = data['email']
     return jsonify({"success": True}), 201
@@ -188,168 +170,125 @@ def logout():
     session.pop('user_email', None)
     return jsonify({"success": True}), 200
 
-# --- API Endpoints com Google Sheets ---
-@app.route('/api/provas', methods=['POST'])
-def create_prova():
-    if 'user_email' not in session:
-        return jsonify({"error": "Usuário não autorizado"}), 403
-    
+# --- Rotas de API (Provas) ---
+@app.route('/api/provas', methods=['POST', 'GET'])
+def handle_provas():
+    if 'user_email' not in session: return jsonify({"error": "Usuário não autorizado"}), 403
     user_email = session['user_email']
-    data = request.json
-    
-    _, provas_sheet, _ = get_sheets()
-    new_id = str(uuid.uuid4())
-    questoes_str = json.dumps(data.get('questoes', []))
-    
-    provas_sheet.append_row([
-        new_id, user_email, data.get('titulo', ''),
-        data.get('cabecalho', ''), questoes_str
-    ])
-    
-    data['id'] = new_id
-    return jsonify(data), 201
+    _, provas_sheet, _, _ = get_sheets()
 
-@app.route('/api/provas', methods=['GET'])
-def get_provas():
-    if 'user_email' not in session:
-        return jsonify({"error": "Usuário não autorizado"}), 403
-        
-    user_email = session['user_email']
-    _, provas_sheet, _ = get_sheets()
+    if request.method == 'POST':
+        data = request.json
+        new_id = str(uuid.uuid4())
+        questoes_str = json.dumps(data.get('questoes', []))
+        provas_sheet.append_row([new_id, user_email, data.get('titulo', ''), data.get('cabecalho', ''), questoes_str])
+        data['id'] = new_id
+        return jsonify(data), 201
     
-    all_provas = provas_sheet.get_all_records()
-    user_provas = [p for p in all_provas if p['user_email'] == user_email]
-
-    for prova in user_provas:
-        try:
-            prova['questoes'] = json.loads(prova['questoes']) if prova['questoes'] else []
-        except json.JSONDecodeError:
-            prova['questoes'] = []
-
-    return jsonify(user_provas)
+    if request.method == 'GET':
+        all_provas = provas_sheet.get_all_records()
+        user_provas = [p for p in all_provas if p['user_email'] == user_email]
+        for prova in user_provas:
+            try: prova['questoes'] = json.loads(prova['questoes']) if prova['questoes'] else []
+            except json.JSONDecodeError: prova['questoes'] = []
+        return jsonify(user_provas)
 
 def get_prova_data_by_id(prova_id, user_email):
-    """Busca os dados de uma prova específica e verifica a permissão do usuário."""
-    _, provas_sheet, _ = get_sheets()
+    _, provas_sheet, _, _ = get_sheets()
     cell = provas_sheet.find(prova_id, in_column=1)
-    if not cell:
-        return None
-    
+    if not cell: return None
     row_values = provas_sheet.row_values(cell.row)
-    if row_values[1] != user_email: 
-        return None
-        
+    if row_values[1] != user_email: return None
     headers = provas_sheet.row_values(1)
     prova_data = dict(zip(headers, row_values))
-    
-    try:
-        prova_data['questoes'] = json.loads(prova_data['questoes']) if prova_data['questoes'] else []
-    except json.JSONDecodeError:
-        prova_data['questoes'] = []
-
+    try: prova_data['questoes'] = json.loads(prova_data['questoes']) if prova_data['questoes'] else []
+    except json.JSONDecodeError: prova_data['questoes'] = []
     return prova_data
 
-@app.route('/api/provas/<prova_id>', methods=['GET'])
-def get_prova_by_id(prova_id):
-    if 'user_email' not in session:
-        return jsonify({"error": "Usuário não autorizado"}), 403
-        
-    prova_data = get_prova_data_by_id(prova_id, session['user_email'])
-    if not prova_data:
-        return jsonify({"error": "Prova não encontrada ou não autorizada"}), 404
-        
-    return jsonify(prova_data)
-
-@app.route('/api/provas/<prova_id>', methods=['PUT'])
-def update_prova(prova_id):
-    if 'user_email' not in session:
-        return jsonify({"error": "Usuário não autorizado"}), 403
-
+@app.route('/api/provas/<prova_id>', methods=['GET', 'PUT', 'DELETE'])
+def handle_prova_by_id(prova_id):
+    if 'user_email' not in session: return jsonify({"error": "Usuário não autorizado"}), 403
     user_email = session['user_email']
-    _, provas_sheet, _ = get_sheets()
-    
+    _, provas_sheet, _, _ = get_sheets()
+
     cell = provas_sheet.find(prova_id, in_column=1)
     if not cell or provas_sheet.cell(cell.row, 2).value != user_email:
         return jsonify({"error": "Prova não encontrada"}), 404
-        
-    data = request.json
-    questoes_str = json.dumps(data.get('questoes', []))
-    
-    provas_sheet.update_cell(cell.row, 3, data.get('titulo', ''))
-    provas_sheet.update_cell(cell.row, 4, data.get('cabecalho', ''))
-    provas_sheet.update_cell(cell.row, 5, questoes_str)
-    
-    return jsonify({"success": True}), 200
 
-@app.route('/api/provas/<prova_id>', methods=['DELETE'])
-def delete_prova(prova_id):
-    if 'user_email' not in session:
-        return jsonify({"error": "Usuário não autorizado"}), 403
+    if request.method == 'GET':
+        return jsonify(get_prova_data_by_id(prova_id, user_email))
+    
+    if request.method == 'PUT':
+        data = request.json
+        questoes_str = json.dumps(data.get('questoes', []))
+        provas_sheet.batch_update([{
+            'range': f'C{cell.row}:E{cell.row}',
+            'values': [[data.get('titulo', ''), data.get('cabecalho', ''), questoes_str]]
+        }])
+        return jsonify({"success": True}), 200
 
+    if request.method == 'DELETE':
+        provas_sheet.delete_rows(cell.row)
+        return jsonify({"success": True}), 200
+
+# --- NOVAS ROTAS DE API (BANCO DE QUESTÕES) ---
+@app.route('/api/questoes', methods=['POST', 'GET'])
+def handle_questoes_banco():
+    if 'user_email' not in session: return jsonify({"error": "Usuário não autorizado"}), 403
     user_email = session['user_email']
-    _, provas_sheet, _ = get_sheets()
-    
-    cell = provas_sheet.find(prova_id, in_column=1)
-    if not cell or provas_sheet.cell(cell.row, 2).value != user_email:
-        return jsonify({"error": "Prova não encontrada"}), 404
-        
-    provas_sheet.delete_rows(cell.row)
-    return jsonify({"success": True}), 200
+    _, _, _, banco_sheet = get_sheets()
 
-# --- NOVA API PARA CORRIGIR A PROVA ---
+    if request.method == 'POST':
+        data = request.json
+        new_id = str(uuid.uuid4())
+        alternativas_str = json.dumps(data.get('alternativas', []))
+        banco_sheet.append_row([
+            new_id, user_email, data.get('enunciado'), data.get('tipo'), 
+            alternativas_str, data.get('resposta')
+        ])
+        return jsonify({"success": True, "id": new_id}), 201
+
+    if request.method == 'GET':
+        all_questoes = banco_sheet.get_all_records()
+        user_questoes = [q for q in all_questoes if q['user_email'] == user_email]
+        for questao in user_questoes:
+            try: questao['alternativas'] = json.loads(questao['alternativas']) if questao['alternativas'] else []
+            except (json.JSONDecodeError, TypeError): questao['alternativas'] = []
+        return jsonify(user_questoes)
+
+# --- Rota de Correção ---
 @app.route('/api/provas/<prova_id>/corrigir', methods=['POST'])
 def corrigir_prova(prova_id):
-    if 'user_email' not in session:
-        return jsonify({"error": "Não autorizado"}), 403
-
+    if 'user_email' not in session: return jsonify({"error": "Não autorizado"}), 403
     dados_aluno = request.json
-    respostas_aluno = dados_aluno.get('respostas', {})
-    nome_aluno = dados_aluno.get('nome_aluno', 'Aluno Sem Nome')
-
     prova_data = get_prova_data_by_id(prova_id, session['user_email'])
-    if not prova_data:
-        return jsonify({"error": "Prova não encontrada"}), 404
+    if not prova_data: return jsonify({"error": "Prova não encontrada"}), 404
     
-    gabarito_oficial = prova_data.get('questoes', [])
     acertos = 0
     questoes_objetivas = 0
-
-    for i, questao_gabarito in enumerate(gabarito_oficial):
-        # Apenas questões objetivas são auto-corrigidas
+    for i, questao_gabarito in enumerate(prova_data.get('questoes', [])):
         if questao_gabarito['tipo'] != 'dissertativa':
             questoes_objetivas += 1
-            resposta_oficial = questao_gabarito.get('resposta', '').strip().lower()
-            resposta_aluno = respostas_aluno.get(str(i), '').strip().lower()
-            if resposta_oficial == resposta_aluno:
+            if str(questao_gabarito.get('resposta', '')).strip().lower() == str(dados_aluno.get('respostas', {}).get(str(i), '')).strip().lower():
                 acertos += 1
-
-    # Salva o resultado na planilha
-    _, _, resultados_sheet = get_sheets()
+    
+    _, _, resultados_sheet, _ = get_sheets()
     resultados_sheet.append_row([
         str(uuid.uuid4()), prova_id, prova_data.get('titulo'), 
-        nome_aluno, acertos, questoes_objetivas
+        dados_aluno.get('nome_aluno', 'N/A'), acertos, questoes_objetivas
     ])
+    return jsonify({"success": True, "acertos": acertos, "total_questoes": questoes_objetivas, "nome_aluno": dados_aluno.get('nome_aluno')})
 
-    return jsonify({
-        "success": True, "nome_aluno": nome_aluno, "acertos": acertos,
-        "total_questoes": questoes_objetivas
-    })
-
+# --- Rota de PDF ---
 @app.route('/api/provas/<prova_id>/pdf')
 @app.route('/api/provas/<prova_id>/gabarito')
 def get_pdf(prova_id):
-    if 'user_email' not in session:
-        return "Não autorizado", 403
-
+    if 'user_email' not in session: return "Não autorizado", 403
     prova_data = get_prova_data_by_id(prova_id, session['user_email'])
-    if not prova_data:
-        return "Prova não encontrada ou não autorizada", 404
+    if not prova_data: return "Prova não encontrada", 404
     
     is_gabarito = 'gabarito' in request.path
-    if is_gabarito:
-        pdf_buffer = generate_gabarito_table_pdf(prova_data)
-    else:
-        pdf_buffer = generate_pdf_base(prova_data)
+    pdf_buffer = generate_gabarito_table_pdf(prova_data) if is_gabarito else generate_pdf_base(prova_data)
     
     file_name = f"{'gabarito' if is_gabarito else 'prova'}_{prova_id[:8]}.pdf"
     return send_file(pdf_buffer, as_attachment=True, download_name=file_name, mimetype='application/pdf')
