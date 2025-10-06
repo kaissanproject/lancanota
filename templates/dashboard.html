@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Lança Notas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="main-header">
+        <h1>Lança Notas</h1>
+        <div>
+            <span id="user-email"></span>
+            <button id="logout-button">Sair</button>
+        </div>
+    </header>
+
+    <main class="container">
+        <div class="dashboard-header">
+            <h2>Minhas Provas</h2>
+            <a href="/editor" class="btn btn-primary">Criar Nova Prova</a>
+        </div>
+        <div id="provas-list" class="provas-grid">
+            <!-- As provas serão carregadas aqui via JavaScript -->
+            <p>Carregando suas provas...</p>
+        </div>
+    </main>
+
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
+</body>
+</html>
+

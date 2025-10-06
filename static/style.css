@@ -1,0 +1,240 @@
+/* --- Estilos Gerais --- */
+:root {
+    --primary-color: #007bff;
+    --secondary-color: #6c757d;
+    --background-color: #f8f9fa;
+    --surface-color: #ffffff;
+    --text-color: #333;
+    --danger-color: #dc3545;
+    --success-color: #28a745;
+    --border-radius: 8px;
+    --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    margin: 0;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 900px;
+    margin: 2rem auto;
+    padding: 1.5rem;
+    background-color: var(--surface-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+}
+
+/* --- Cabeçalho --- */
+.main-header {
+    background-color: var(--surface-color);
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.main-header h1 {
+    margin: 0;
+    color: var(--primary-color);
+    font-size: 1.5rem;
+}
+
+.main-header div {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+/* --- Botões --- */
+.btn, button {
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-block;
+    background-color: var(--secondary-color);
+    color: white;
+    transition: background-color 0.2s ease;
+}
+
+.btn:hover, button:hover {
+    opacity: 0.85;
+}
+
+.btn-primary {
+    background-color: var(--primary-color);
+}
+
+.btn-danger {
+    background-color: var(--danger-color);
+}
+
+/* --- Formulários --- */
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+input[type="text"],
+input[type="email"],
+input[type="password"],
+textarea {
+    width: 100%;
+    padding: 0.7rem;
+    border: 1px solid #ccc;
+    border-radius: var(--border-radius);
+    box-sizing: border-box; /* Importante para o padding não aumentar a largura total */
+}
+
+textarea {
+    resize: vertical;
+}
+
+.form-actions {
+    margin-top: 2rem;
+    text-align: right;
+}
+
+/* --- Container de Autenticação (index.html) --- */
+.auth-container {
+    max-width: 400px;
+    margin: 5rem auto;
+    padding: 2rem;
+    background-color: var(--surface-color);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    text-align: center;
+}
+
+.auth-form h2 {
+    margin-top: 0;
+}
+
+.auth-form input {
+    margin-bottom: 1rem;
+}
+
+.auth-form button {
+    width: 100%;
+    background-color: var(--primary-color);
+}
+
+.auth-form a {
+    display: inline-block;
+    margin-top: 1rem;
+    color: var(--primary-color);
+    text-decoration: none;
+}
+
+.error-message {
+    color: var(--danger-color);
+    margin-top: 1rem;
+    min-height: 1.2em;
+}
+
+/* --- Dashboard --- */
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 1rem;
+}
+
+.provas-grid {
+    display: grid;
+    gap: 1.5rem;
+}
+
+.prova-card {
+    background: #fff;
+    padding: 1.5rem;
+    border: 1px solid #e9ecef;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.prova-card h3 {
+    margin-top: 0;
+}
+
+.prova-card-actions {
+    margin-top: 1rem;
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* --- Editor de Prova --- */
+#questoes-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+}
+
+.questao-card {
+    border: 1px solid #ddd;
+    padding: 1.5rem;
+    border-radius: var(--border-radius);
+    background: #fdfdfd;
+}
+
+.questao-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+}
+
+.questao-card-header span {
+    font-weight: bold;
+    color: var(--primary-color);
+}
+
+.add-questao-buttons {
+    margin-top: 2rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+    display: flex;
+    gap: 1rem;
+}
+
+.alternativa-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.alternativa-group input[type="radio"] {
+    flex-shrink: 0;
+}
+
+.alternativa-group input[type="text"] {
+    flex-grow: 1;
+}
+
+#save-status {
+    display: inline-block;
+    margin-right: 1rem;
+    color: var(--success-color);
+    font-weight: bold;
+}
+

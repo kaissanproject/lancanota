@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor de Prova - Lança Notas</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <header class="main-header">
+        <h1>Editor de Prova</h1>
+        <div>
+             <a href="/dashboard" class="btn">Voltar para Dashboard</a>
+             <button id="logout-button">Sair</button>
+        </div>
+    </header>
+
+    <main class="container">
+        <form id="editor-form">
+            <div class="form-group">
+                <label for="prova-titulo">Título da Prova</label>
+                <input type="text" id="prova-titulo" required>
+            </div>
+            <div class="form-group">
+                <label for="prova-cabecalho">Cabeçalho (Nome, Turma, Data, etc.)</label>
+                <textarea id="prova-cabecalho" rows="4" placeholder="Ex:&#10;Nome:_________________________&#10;Data:____/____/________"></textarea>
+            </div>
+
+            <hr>
+
+            <h3>Questões</h3>
+            <div id="questoes-container">
+                <!-- As questões serão adicionadas aqui -->
+            </div>
+            
+            <div class="add-questao-buttons">
+                <button type="button" class="btn" onclick="adicionarQuestao('multipla_escolha')">Add Múltipla Escolha</button>
+                <button type="button" class="btn" onclick="adicionarQuestao('verdadeiro_falso')">Add Verdadeiro/Falso</button>
+                <button type="button" class="btn" onclick="adicionarQuestao('dissertativa')">Add Dissertativa</button>
+            </div>
+
+            <div class="form-actions">
+                 <button type="submit" class="btn btn-primary">Salvar Prova</button>
+                 <p id="save-status"></p>
+            </div>
+        </form>
+    </main>
+
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
+</body>
+</html>
+

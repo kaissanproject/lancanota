@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lança Notas - Bem-vindo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="auth-container">
+        <h1>Lança Notas</h1>
+        <p>Crie, edite e gere PDFs de suas provas facilmente.</p>
+        
+        <!-- Formulário de Login -->
+        <form id="login-form" class="auth-form">
+            <h2>Login</h2>
+            <input type="email" id="login-email" placeholder="E-mail" required>
+            <input type="password" id="login-password" placeholder="Senha" required>
+            <button type="submit">Entrar</button>
+            <p class="error-message" id="login-error"></p>
+            <a href="#" id="show-register">Não tem uma conta? Cadastre-se</a>
+        </form>
+
+        <!-- Formulário de Cadastro -->
+        <form id="register-form" class="auth-form" style="display: none;">
+            <h2>Cadastro</h2>
+            <input type="email" id="register-email" placeholder="E-mail" required>
+            <input type="password" id="register-password" placeholder="Senha (mín. 6 caracteres)" required>
+            <button type="submit">Cadastrar</button>
+            <p class="error-message" id="register-error"></p>
+            <a href="#" id="show-login">Já tem uma conta? Faça login</a>
+        </form>
+    </div>
+    
+    <!-- Nosso Script de Autenticação -->
+    <script src="{{ url_for('static', filename='auth.js') }}"></script>
+</body>
+</html>
+
