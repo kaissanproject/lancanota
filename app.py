@@ -13,14 +13,16 @@ app = Flask(__name__)
 # Chave secreta para gerenciar sessões de login
 app.secret_key = os.urandom(24) 
 
-# --- Configuração do Google Sheets ---
+# --- Configuração do Google Sheets (ATUALIZADO) ---
 def get_sheets():
     """Conecta-se à API do Google Sheets e retorna as planilhas."""
     gc = gspread.service_account(filename="google_credentials.json")
     sheet = gc.open("LancaNotas-DB") 
     users_sheet = sheet.worksheet("usuarios")
     provas_sheet = sheet.worksheet("provas")
-    return users_sheet, provas_sheet
+    # Adicionamos a nova planilha de resultados
+    resultados_sheet = sheet.worksheet("resultados")
+    return users_sheet, provas_sheet, resultados_sheet
 
 # --- Funções Auxiliares para PDF ---
 
@@ -94,33 +96,26 @@ def generate_pdf_base(prova_data):
     return buffer
 
 def generate_gabarito_table_pdf(prova_data):
-    """NOVA FUNÇÃO: Gera um PDF de gabarito em formato de tabela."""
+    """Gera um PDF de gabarito em formato de tabela."""
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
     margin = 0.75 * inch
 
-    # Título
     p.setFont("Helvetica-Bold", 16)
     p.drawString(margin, height - margin, "GABARITO OFICIAL")
     p.setFont("Helvetica", 14)
     p.drawString(margin, height - margin - 25, prova_data.get('titulo', 'Prova'))
-
     y_position = height - margin - 70
-    
-    # Cabeçalho da tabela
     p.setFont("Helvetica-Bold", 12)
     p.drawString(margin, y_position, "Questão")
     p.drawString(margin + 1.5 * inch, y_position, "Resposta")
     p.line(margin, y_position - 8, width - margin, y_position - 8)
-    
     y_position -= 30
     p.setFont("Helvetica", 11)
-
     questoes = prova_data.get('questoes', [])
     q_num = 1
     for questao in questoes:
-        # Checa se precisa de uma nova página
         if y_position < margin:
             p.showPage()
             p.setFont("Helvetica-Bold", 12)
@@ -129,17 +124,12 @@ def generate_gabarito_table_pdf(prova_data):
             p.line(margin, height - margin - 8, width - margin, height - margin - 8)
             y_position = height - margin - 30
             p.setFont("Helvetica", 11)
-            
         p.drawString(margin, y_position, f"{q_num}.")
-        
         resposta = str(questao.get('resposta', ''))
-        # Usa a função de desenhar múltiplas linhas para respostas longas (dissertativas)
         text_obj, line_count = draw_multiline_text(p, resposta, margin + 1.5 * inch, y_position, width - margin - (margin + 1.5 * inch))
         p.drawText(text_obj)
-        
-        y_position -= (line_count * 14) + 15 # Adiciona um espaçamento extra entre as linhas
+        y_position -= (line_count * 14) + 15
         q_num += 1
-
     p.save()
     buffer.seek(0)
     return buffer
@@ -163,10 +153,17 @@ def editor():
         return redirect(url_for('index'))
     return render_template('editor.html')
 
+# --- NOVA ROTA PARA A PÁGINA DE CORREÇÃO ---
+@app.route('/correcao')
+def correcao():
+    if 'user_email' not in session:
+        return redirect(url_for('index'))
+    return render_template('correcao.html')
+
 @app.route('/api/login', methods=['POST'])
 def login():
     data = request.json
-    users_sheet, _ = get_sheets()
+    users_sheet, _, _ = get_sheets()
     users = users_sheet.get_all_records()
     for user in users:
         if user['email'] == data['email'] and user['senha'] == data['password']:
@@ -177,7 +174,7 @@ def login():
 @app.route('/api/register', methods=['POST'])
 def register():
     data = request.json
-    users_sheet, _ = get_sheets()
+    users_sheet, _, _ = get_sheets()
     users = users_sheet.get_all_records()
     if any(user['email'] == data['email'] for user in users):
         return jsonify({"error": "Este e-mail já está cadastrado"}), 409
@@ -200,7 +197,7 @@ def create_prova():
     user_email = session['user_email']
     data = request.json
     
-    _, provas_sheet = get_sheets()
+    _, provas_sheet, _ = get_sheets()
     new_id = str(uuid.uuid4())
     questoes_str = json.dumps(data.get('questoes', []))
     
@@ -218,7 +215,7 @@ def get_provas():
         return jsonify({"error": "Usuário não autorizado"}), 403
         
     user_email = session['user_email']
-    _, provas_sheet = get_sheets()
+    _, provas_sheet, _ = get_sheets()
     
     all_provas = provas_sheet.get_all_records()
     user_provas = [p for p in all_provas if p['user_email'] == user_email]
@@ -233,7 +230,7 @@ def get_provas():
 
 def get_prova_data_by_id(prova_id, user_email):
     """Busca os dados de uma prova específica e verifica a permissão do usuário."""
-    _, provas_sheet = get_sheets()
+    _, provas_sheet, _ = get_sheets()
     cell = provas_sheet.find(prova_id, in_column=1)
     if not cell:
         return None
@@ -269,7 +266,7 @@ def update_prova(prova_id):
         return jsonify({"error": "Usuário não autorizado"}), 403
 
     user_email = session['user_email']
-    _, provas_sheet = get_sheets()
+    _, provas_sheet, _ = get_sheets()
     
     cell = provas_sheet.find(prova_id, in_column=1)
     if not cell or provas_sheet.cell(cell.row, 2).value != user_email:
@@ -290,7 +287,7 @@ def delete_prova(prova_id):
         return jsonify({"error": "Usuário não autorizado"}), 403
 
     user_email = session['user_email']
-    _, provas_sheet = get_sheets()
+    _, provas_sheet, _ = get_sheets()
     
     cell = provas_sheet.find(prova_id, in_column=1)
     if not cell or provas_sheet.cell(cell.row, 2).value != user_email:
@@ -299,7 +296,45 @@ def delete_prova(prova_id):
     provas_sheet.delete_rows(cell.row)
     return jsonify({"success": True}), 200
 
-# --- ROTA DE PDF ATUALIZADA ---
+# --- NOVA API PARA CORRIGIR A PROVA ---
+@app.route('/api/provas/<prova_id>/corrigir', methods=['POST'])
+def corrigir_prova(prova_id):
+    if 'user_email' not in session:
+        return jsonify({"error": "Não autorizado"}), 403
+
+    dados_aluno = request.json
+    respostas_aluno = dados_aluno.get('respostas', {})
+    nome_aluno = dados_aluno.get('nome_aluno', 'Aluno Sem Nome')
+
+    prova_data = get_prova_data_by_id(prova_id, session['user_email'])
+    if not prova_data:
+        return jsonify({"error": "Prova não encontrada"}), 404
+    
+    gabarito_oficial = prova_data.get('questoes', [])
+    acertos = 0
+    questoes_objetivas = 0
+
+    for i, questao_gabarito in enumerate(gabarito_oficial):
+        # Apenas questões objetivas são auto-corrigidas
+        if questao_gabarito['tipo'] != 'dissertativa':
+            questoes_objetivas += 1
+            resposta_oficial = questao_gabarito.get('resposta', '').strip().lower()
+            resposta_aluno = respostas_aluno.get(str(i), '').strip().lower()
+            if resposta_oficial == resposta_aluno:
+                acertos += 1
+
+    # Salva o resultado na planilha
+    _, _, resultados_sheet = get_sheets()
+    resultados_sheet.append_row([
+        str(uuid.uuid4()), prova_id, prova_data.get('titulo'), 
+        nome_aluno, acertos, questoes_objetivas
+    ])
+
+    return jsonify({
+        "success": True, "nome_aluno": nome_aluno, "acertos": acertos,
+        "total_questoes": questoes_objetivas
+    })
+
 @app.route('/api/provas/<prova_id>/pdf')
 @app.route('/api/provas/<prova_id>/gabarito')
 def get_pdf(prova_id):
@@ -311,7 +346,6 @@ def get_pdf(prova_id):
         return "Prova não encontrada ou não autorizada", 404
     
     is_gabarito = 'gabarito' in request.path
-    
     if is_gabarito:
         pdf_buffer = generate_gabarito_table_pdf(prova_data)
     else:
