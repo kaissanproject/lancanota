@@ -12,18 +12,19 @@
 <body>
     <header class="app-header">
         <h1>Lança Notas</h1>
-        <button id="logout-btn" class="button-secondary">Sair</button>
+        <button id="logout-btn" class="button button-secondary">Sair</button>
     </header>
 
     <main class="container">
-        <div class="dashboard-header">
-            <h2>Minhas Provas</h2>
-            <a href="/editor" class="button-primary">Criar Nova Prova</a>
-        </div>
+        <div class="card">
+            <div class="dashboard-header">
+                <h2>Minhas Provas</h2>
+                <a href="/editor" class="button button-primary">Criar Nova Prova</a>
+            </div>
 
-        <div id="provas-container">
-            <!-- As provas criadas serão inseridas aqui pelo JavaScript -->
-            <p>Carregando suas provas...</p>
+            <div id="provas-container">
+                <p>Carregando suas provas...</p>
+            </div>
         </div>
     </main>
 
@@ -39,18 +40,13 @@
 
         function carregarProvas() {
             fetch('/api/provas')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Erro ao carregar provas.');
-                    }
-                    return response.json();
-                })
+                .then(response => response.ok ? response.json() : Promise.reject('Erro ao carregar provas.'))
                 .then(provas => {
                     const container = document.getElementById('provas-container');
-                    container.innerHTML = ''; // Limpa a mensagem "Carregando..."
+                    container.innerHTML = ''; 
 
                     if (provas.length === 0) {
-                        container.innerHTML = '<p>Você ainda não criou nenhuma prova. Clique em "Criar Nova Prova" para começar!</p>';
+                        container.innerHTML = '<p style="text-align: center; margin-top: 1rem;">Você ainda não criou nenhuma prova. Clique em "Criar Nova Prova" para começar!</p>';
                         return;
                     }
 
@@ -58,14 +54,13 @@
                         const provaElement = document.createElement('div');
                         provaElement.className = 'prova-card';
                         
-                        // O segredo está aqui: os botões de PDF são links <a> com o href correto
                         provaElement.innerHTML = `
                             <h3>${escapeHTML(prova.titulo)}</h3>
                             <div class="prova-actions">
-                                <button onclick="editarProva('${prova.id}')">Editar</button>
-                                <a href="/api/provas/${prova.id}/pdf" target="_blank" class="button-secondary">Gerar PDF</a>
-                                <a href="/api/provas/${prova.id}/gabarito" target="_blank" class="button-secondary">Gabarito</a>
-                                <button class="delete-btn" onclick="excluirProva('${prova.id}')">Excluir</button>
+                                <button onclick="editarProva('${prova.id}')" class="button button-secondary">Editar</button>
+                                <a href="/api/provas/${prova.id}/pdf" target="_blank" class="button button-secondary">Gerar PDF</a>
+                                <a href="/api/provas/${prova.id}/gabarito" target="_blank" class="button button-secondary">Gabarito</a>
+                                <button class="button button-danger" onclick="excluirProva('${prova.id}')">Excluir</button>
                             </div>
                         `;
                         container.appendChild(provaElement);
@@ -73,7 +68,7 @@
                 })
                 .catch(error => {
                     console.error('Erro:', error);
-                    document.getElementById('provas-container').innerHTML = '<p>Não foi possível carregar suas provas. Tente recarregar a página.</p>';
+                    document.getElementById('provas-container').innerHTML = '<p class="error-message">Não foi possível carregar suas provas. Tente recarregar a página.</p>';
                 });
         }
 
@@ -82,30 +77,21 @@
         }
 
         function excluirProva(id) {
-            if (confirm('Tem certeza que deseja excluir esta prova? Esta ação não pode ser desfeita.')) {
-                fetch(`/api/provas/${id}`, {
-                    method: 'DELETE'
-                })
+            // Removido o 'confirm' para maior compatibilidade
+            fetch(`/api/provas/${id}`, { method: 'DELETE' })
                 .then(response => {
                     if (response.ok) {
-                        carregarProvas(); // Recarrega a lista após excluir
+                        carregarProvas();
                     } else {
-                        alert('Erro ao excluir a prova.');
+                        console.error('Erro ao excluir a prova.');
                     }
                 });
-            }
         }
 
         function escapeHTML(str) {
-            return str.replace(/[&<>"']/g, function(match) {
-                return {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;'
-                }[match];
-            });
+            const p = document.createElement('p');
+            p.textContent = str;
+            return p.innerHTML;
         }
     </script>
 </body>
