@@ -4,29 +4,110 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Lança Notas</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <header class="main-header">
+    <header class="app-header">
         <h1>Lança Notas</h1>
-        <div>
-            <span id="user-email"></span>
-            <button id="logout-button">Sair</button>
-        </div>
+        <button id="logout-btn" class="button-secondary">Sair</button>
     </header>
 
     <main class="container">
         <div class="dashboard-header">
             <h2>Minhas Provas</h2>
-            <a href="/editor" class="btn btn-primary">Criar Nova Prova</a>
+            <a href="/editor" class="button-primary">Criar Nova Prova</a>
         </div>
-        <div id="provas-list" class="provas-grid">
-            <!-- As provas serão carregadas aqui via JavaScript -->
+
+        <div id="provas-container">
+            <!-- As provas criadas serão inseridas aqui pelo JavaScript -->
             <p>Carregando suas provas...</p>
         </div>
     </main>
 
-    <script src="{{ url_for('static', filename='auth.js') }}"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            carregarProvas();
+
+            document.getElementById('logout-btn').addEventListener('click', () => {
+                fetch('/api/logout', { method: 'POST' })
+                    .then(() => window.location.href = '/');
+            });
+        });
+
+        function carregarProvas() {
+            fetch('/api/provas')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Erro ao carregar provas.');
+                    }
+                    return response.json();
+                })
+                .then(provas => {
+                    const container = document.getElementById('provas-container');
+                    container.innerHTML = ''; // Limpa a mensagem "Carregando..."
+
+                    if (provas.length === 0) {
+                        container.innerHTML = '<p>Você ainda não criou nenhuma prova. Clique em "Criar Nova Prova" para começar!</p>';
+                        return;
+                    }
+
+                    provas.forEach(prova => {
+                        const provaElement = document.createElement('div');
+                        provaElement.className = 'prova-card';
+                        
+                        // O segredo está aqui: os botões de PDF são links <a> com o href correto
+                        provaElement.innerHTML = `
+                            <h3>${escapeHTML(prova.titulo)}</h3>
+                            <div class="prova-actions">
+                                <button onclick="editarProva('${prova.id}')">Editar</button>
+                                <a href="/api/provas/${prova.id}/pdf" target="_blank" class="button-secondary">Gerar PDF</a>
+                                <a href="/api/provas/${prova.id}/gabarito" target="_blank" class="button-secondary">Gabarito</a>
+                                <button class="delete-btn" onclick="excluirProva('${prova.id}')">Excluir</button>
+                            </div>
+                        `;
+                        container.appendChild(provaElement);
+                    });
+                })
+                .catch(error => {
+                    console.error('Erro:', error);
+                    document.getElementById('provas-container').innerHTML = '<p>Não foi possível carregar suas provas. Tente recarregar a página.</p>';
+                });
+        }
+
+        function editarProva(id) {
+            window.location.href = `/editor?id=${id}`;
+        }
+
+        function excluirProva(id) {
+            if (confirm('Tem certeza que deseja excluir esta prova? Esta ação não pode ser desfeita.')) {
+                fetch(`/api/provas/${id}`, {
+                    method: 'DELETE'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        carregarProvas(); // Recarrega a lista após excluir
+                    } else {
+                        alert('Erro ao excluir a prova.');
+                    }
+                });
+            }
+        }
+
+        function escapeHTML(str) {
+            return str.replace(/[&<>"']/g, function(match) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[match];
+            });
+        }
+    </script>
 </body>
 </html>
 
