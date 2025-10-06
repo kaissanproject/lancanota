@@ -8,33 +8,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const bancoQuestoesLista = document.getElementById('banco-questoes-lista');
     const adicionarSelecionadasBtn = document.getElementById('adicionar-selecionadas-btn');
 
+    // Se algum elemento essencial do modal não for encontrado, interrompe para evitar mais erros.
+    if (!bancoModal || !fecharModalBtn || !addDoBancoBtn) {
+        console.error("ERRO: Um ou mais elementos do modal não foram encontrados. Verifique os IDs no arquivo editor.html.");
+        return;
+    }
+
     let questoes = [];
     let editProvaId = null;
 
-    // --- LÓGICA DE CARREGAR PROVA PARA EDIÇÃO ---
-    const params = new URLSearchParams(window.location.search);
-    editProvaId = params.get('id');
-
-    if (editProvaId) {
-        document.getElementById('editor-title').textContent = 'Editar Prova';
-        fetch(`/api/provas/${editProvaId}`)
-            .then(response => response.json())
-            .then(data => {
-                document.getElementById('prova-titulo').value = data.titulo;
-                document.getElementById('prova-cabecalho').value = data.cabecalho;
-                questoes = data.questoes || [];
-                renderizarQuestoes();
-            });
-    }
-    
-    // --- LÓGICA DE ADICIONAR QUESTÕES MANUALMENTE ---
-    document.getElementById('add-multipla-escolha').addEventListener('click', () => adicionarQuestao('multipla_escolha'));
-    document.getElementById('add-dissertativa').addEventListener('click', () => adicionarQuestao('dissertativa'));
-    document.getElementById('add-vf').addEventListener('click', () => adicionarQuestao('verdadeiro_falso'));
-    
-    // --- LÓGICA DO BANCO DE QUESTÕES (CORRIGIDA E MELHORADA) ---
-    
-    // Função para abrir o modal
+    // --- LÓGICA DO BANCO DE QUESTÕES ---
     function abrirModalBanco() {
         bancoQuestoesLista.innerHTML = '<p>Carregando questões...</p>';
         bancoModal.classList.remove('hidden');
@@ -44,36 +27,28 @@ document.addEventListener('DOMContentLoaded', () => {
                 bancoQuestoesLista.innerHTML = '';
                 if (questoesDoBanco.length === 0) {
                     bancoQuestoesLista.innerHTML = '<p>Seu banco de questões está vazio. Salve questões a partir do editor para vê-las aqui.</p>';
-                    return;
+                } else {
+                    questoesDoBanco.forEach(q => {
+                        const questaoEl = document.createElement('div');
+                        questaoEl.className = 'banco-questao-item';
+                        // Usamos textContent para segurança ao inserir dados do usuário
+                        const label = document.createElement('label');
+                        label.htmlFor = `q-${q.id_questao}`;
+                        label.textContent = `${q.enunciado.substring(0, 100)}...`;
+                        
+                        questaoEl.innerHTML = `<input type="checkbox" id="q-${q.id_questao}" data-questao-json='${JSON.stringify(q)}'>`;
+                        questaoEl.appendChild(label);
+                        bancoQuestoesLista.appendChild(questaoEl);
+                    });
                 }
-                questoesDoBanco.forEach(q => {
-                    const questaoEl = document.createElement('div');
-                    questaoEl.className = 'banco-questao-item';
-                    questaoEl.innerHTML = `
-                        <input type="checkbox" id="q-${q.id_questao}" data-questao-json='${JSON.stringify(q)}'>
-                        <label for="q-${q.id_questao}">${escapeHTML(q.enunciado.substring(0, 100))}...</label>
-                    `;
-                    bancoQuestoesLista.appendChild(questaoEl);
-                });
+            }).catch(err => {
+                bancoQuestoesLista.innerHTML = '<p>Erro ao carregar as questões.</p>';
             });
     }
 
-    // Função para fechar o modal
     function fecharModalBanco() {
         bancoModal.classList.add('hidden');
     }
-    
-    // Adiciona os "ouvintes" de eventos para os botões do modal
-    addDoBancoBtn.addEventListener('click', abrirModalBanco);
-    fecharModalBtn.addEventListener('click', fecharModalBanco);
-    adicionarSelecionadasBtn.addEventListener('click', adicionarQuestoesDoBanco);
-    
-    // NOVO: Adiciona a funcionalidade de fechar o modal ao clicar fora dele
-    bancoModal.addEventListener('click', (event) => {
-        if (event.target === bancoModal) { // Verifica se o clique foi no fundo escuro
-            fecharModalBanco();
-        }
-    });
 
     function adicionarQuestoesDoBanco() {
         const checkboxes = bancoQuestoesLista.querySelectorAll('input[type="checkbox"]:checked');
@@ -143,30 +118,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
                 ${alternativasHtml}
                 <div class="button-group">
-                    <button type="button" class="button button-danger" onclick="removerQuestao(${index})">Remover</button>
-                    <button type="button" class="button button-secondary" onclick="salvarQuestaoNoBanco(${index})">Salvar no Banco</button>
+                    <button type="button" class="button button-danger remover-questao-btn" data-index="${index}">Remover</button>
+                    <button type="button" class="button button-secondary salvar-banco-btn" data-index="${index}">Salvar no Banco</button>
                 </div>
             `;
             questoesContainer.appendChild(questaoCard);
         });
-        
-        document.querySelectorAll('.enunciado-input').forEach(el => el.addEventListener('input', e => {
-            questoes[e.target.dataset.index].enunciado = e.target.value;
-        }));
-        document.querySelectorAll('.alternativa-input').forEach(el => el.addEventListener('input', e => {
-            questoes[e.target.dataset.index].alternativas[e.target.dataset.altIndex] = e.target.value;
-        }));
-        document.querySelectorAll('.resposta-input').forEach(el => el.addEventListener('input', e => {
-            questoes[e.target.dataset.index].resposta = e.target.value;
-        }));
     }
 
-    window.removerQuestao = (index) => {
-        questoes.splice(index, 1);
-        renderizarQuestoes();
-    };
+    // --- EVENT LISTENERS DINÂMICOS (para botões dentro das questões) ---
+    questoesContainer.addEventListener('input', (e) => {
+        const index = e.target.dataset.index;
+        if (!index) return;
 
-    window.salvarQuestaoNoBanco = (index) => {
+        if (e.target.classList.contains('enunciado-input')) {
+            questoes[index].enunciado = e.target.value;
+        } else if (e.target.classList.contains('alternativa-input')) {
+            questoes[index].alternativas[e.target.dataset.altIndex] = e.target.value;
+        } else if (e.target.classList.contains('resposta-input')) {
+            questoes[index].resposta = e.target.value;
+        }
+    });
+
+    questoesContainer.addEventListener('click', (e) => {
+        const index = e.target.dataset.index;
+        if (!index) return;
+        
+        if (e.target.classList.contains('remover-questao-btn')) {
+            questoes.splice(index, 1);
+            renderizarQuestoes();
+        } else if (e.target.classList.contains('salvar-banco-btn')) {
+            salvarQuestaoNoBanco(index);
+        }
+    });
+
+    function salvarQuestaoNoBanco(index) {
         const questao = questoes[index];
         if (!questao.enunciado || !questao.resposta) {
             alert('Preencha o enunciado e a resposta antes de salvar no banco.');
@@ -186,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .catch(err => {
             alert('Erro ao salvar a questão: ' + err.message);
         });
-    };
+    }
     
     // --- LÓGICA DE SALVAR A PROVA ---
     provaForm.addEventListener('submit', (e) => {
@@ -196,20 +182,14 @@ document.addEventListener('DOMContentLoaded', () => {
             cabecalho: document.getElementById('prova-cabecalho').value,
             questoes: questoes
         };
-
         const method = editProvaId ? 'PUT' : 'POST';
         const url = editProvaId ? `/api/provas/${editProvaId}` : '/api/provas';
 
-        fetch(url, {
-            method: method,
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(provaData)
-        })
-        .then(response => {
-            if (response.ok) {
-                window.location.href = '/dashboard';
-            } else { alert('Erro ao salvar a prova.'); }
-        });
+        fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(provaData) })
+            .then(response => {
+                if (response.ok) { window.location.href = '/dashboard'; } 
+                else { alert('Erro ao salvar a prova.'); }
+            });
     });
 
     function escapeHTML(str) {
@@ -218,5 +198,33 @@ document.addEventListener('DOMContentLoaded', () => {
         p.textContent = str;
         return p.innerHTML;
     }
+
+    // --- INICIALIZAÇÃO E EVENT LISTENERS ESTÁTICOS ---
+    
+    // Carrega a prova se estiver no modo de edição
+    if (editProvaId) {
+        document.getElementById('editor-title').textContent = 'Editar Prova';
+        fetch(`/api/provas/${editProvaId}`)
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('prova-titulo').value = data.titulo;
+                document.getElementById('prova-cabecalho').value = data.cabecalho;
+                questoes = data.questoes || [];
+                renderizarQuestoes();
+            });
+    }
+
+    // Adiciona questões manualmente
+    document.getElementById('add-multipla-escolha').addEventListener('click', () => adicionarQuestao('multipla_escolha'));
+    document.getElementById('add-dissertativa').addEventListener('click', () => adicionarQuestao('dissertativa'));
+    document.getElementById('add-vf').addEventListener('click', () => adicionarQuestao('verdadeiro_falso'));
+    
+    // Listeners do modal
+    addDoBancoBtn.addEventListener('click', abrirModalBanco);
+    fecharModalBtn.addEventListener('click', fecharModalBanco);
+    adicionarSelecionadasBtn.addEventListener('click', adicionarQuestoesDoBanco);
+    bancoModal.addEventListener('click', (event) => {
+        if (event.target === bancoModal) { fecharModalBanco(); }
+    });
 });
 
