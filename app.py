@@ -13,7 +13,7 @@ app = Flask(__name__)
 # Chave secreta para gerenciar sessões de login
 app.secret_key = os.urandom(24) 
 
-# --- Configuração do Google Sheets (MÉTODO ATUALIZADO) ---
+# --- Configuração do Google Sheets ---
 def get_sheets():
     """Conecta-se à API do Google Sheets e retorna as planilhas."""
     gc = gspread.service_account(filename="google_credentials.json")
@@ -22,36 +22,32 @@ def get_sheets():
     provas_sheet = sheet.worksheet("provas")
     return users_sheet, provas_sheet
 
-# --- Funções Auxiliares para PDF (CORRIGIDA) ---
+# --- Funções Auxiliares para PDF ---
+
 def draw_multiline_text(canvas, text, x, y, max_width):
     """Desenha texto com múltiplas linhas e retorna o objeto de texto e a contagem de linhas."""
     text_object = canvas.beginText(x, y)
     line_count = 0
-    # Processa cada linha que já vem do textarea (quebras de linha do usuário)
     for line in text.splitlines():
-        # Se a linha do usuário for muito longa, quebra em palavras
         if canvas.stringWidth(line) > max_width:
             words = line.split()
             current_line = ''
             for word in words:
-                # Se a palavra cabe na linha atual, adiciona
                 if canvas.stringWidth(current_line + word) < max_width:
                     current_line += word + ' '
-                # Se não cabe, escreve a linha atual e começa uma nova
                 else:
                     text_object.textLine(current_line)
                     line_count += 1
                     current_line = word + ' '
-            # Escreve o que sobrou da linha
             text_object.textLine(current_line)
             line_count += 1
-        # Se a linha do usuário já cabe, escreve direto
         else:
             text_object.textLine(line)
             line_count += 1
     return text_object, line_count
 
-def generate_pdf_base(prova_data, is_gabarito=False):
+def generate_pdf_base(prova_data):
+    """Gera o PDF da prova completa para o aluno."""
     buffer = io.BytesIO()
     p = canvas.Canvas(buffer, pagesize=letter)
     width, height = letter
@@ -76,10 +72,8 @@ def generate_pdf_base(prova_data, is_gabarito=False):
             y_position = height - margin
         
         enunciado = f"{q_num}. {questao['enunciado']}"
-        # A função agora retorna o objeto de texto E o número de linhas
         text_obj, line_count = draw_multiline_text(p, enunciado, margin, y_position, width - 2 * margin)
         p.drawText(text_obj)
-        # Ajusta a posição Y com base no número de linhas calculado
         y_position -= (line_count) * 14
 
         if questao['tipo'] == 'multipla_escolha':
@@ -93,15 +87,59 @@ def generate_pdf_base(prova_data, is_gabarito=False):
         elif questao['tipo'] == 'dissertativa':
             y_position -= 1 * inch
         
-        if is_gabarito:
-            p.setFont("Helvetica-Bold", 10)
-            resposta_correta = questao.get('resposta', '')
-            p.drawString(margin, y_position, f"RESPOSTA: {resposta_correta}")
-            y_position -= 20
-            p.setFont("Helvetica", 11)
-        
         y_position -= 0.5 * inch
         q_num += 1
+    p.save()
+    buffer.seek(0)
+    return buffer
+
+def generate_gabarito_table_pdf(prova_data):
+    """NOVA FUNÇÃO: Gera um PDF de gabarito em formato de tabela."""
+    buffer = io.BytesIO()
+    p = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    margin = 0.75 * inch
+
+    # Título
+    p.setFont("Helvetica-Bold", 16)
+    p.drawString(margin, height - margin, "GABARITO OFICIAL")
+    p.setFont("Helvetica", 14)
+    p.drawString(margin, height - margin - 25, prova_data.get('titulo', 'Prova'))
+
+    y_position = height - margin - 70
+    
+    # Cabeçalho da tabela
+    p.setFont("Helvetica-Bold", 12)
+    p.drawString(margin, y_position, "Questão")
+    p.drawString(margin + 1.5 * inch, y_position, "Resposta")
+    p.line(margin, y_position - 8, width - margin, y_position - 8)
+    
+    y_position -= 30
+    p.setFont("Helvetica", 11)
+
+    questoes = prova_data.get('questoes', [])
+    q_num = 1
+    for questao in questoes:
+        # Checa se precisa de uma nova página
+        if y_position < margin:
+            p.showPage()
+            p.setFont("Helvetica-Bold", 12)
+            p.drawString(margin, height - margin, "Questão")
+            p.drawString(margin + 1.5 * inch, height - margin, "Resposta")
+            p.line(margin, height - margin - 8, width - margin, height - margin - 8)
+            y_position = height - margin - 30
+            p.setFont("Helvetica", 11)
+            
+        p.drawString(margin, y_position, f"{q_num}.")
+        
+        resposta = str(questao.get('resposta', ''))
+        # Usa a função de desenhar múltiplas linhas para respostas longas (dissertativas)
+        text_obj, line_count = draw_multiline_text(p, resposta, margin + 1.5 * inch, y_position, width - margin - (margin + 1.5 * inch))
+        p.drawText(text_obj)
+        
+        y_position -= (line_count * 14) + 15 # Adiciona um espaçamento extra entre as linhas
+        q_num += 1
+
     p.save()
     buffer.seek(0)
     return buffer
@@ -189,7 +227,7 @@ def get_provas():
         try:
             prova['questoes'] = json.loads(prova['questoes']) if prova['questoes'] else []
         except json.JSONDecodeError:
-            prova['questoes'] = [] # Lida com dados malformados na planilha
+            prova['questoes'] = []
 
     return jsonify(user_provas)
 
@@ -261,6 +299,7 @@ def delete_prova(prova_id):
     provas_sheet.delete_rows(cell.row)
     return jsonify({"success": True}), 200
 
+# --- ROTA DE PDF ATUALIZADA ---
 @app.route('/api/provas/<prova_id>/pdf')
 @app.route('/api/provas/<prova_id>/gabarito')
 def get_pdf(prova_id):
@@ -272,7 +311,11 @@ def get_pdf(prova_id):
         return "Prova não encontrada ou não autorizada", 404
     
     is_gabarito = 'gabarito' in request.path
-    pdf_buffer = generate_pdf_base(prova_data, is_gabarito=is_gabarito)
+    
+    if is_gabarito:
+        pdf_buffer = generate_gabarito_table_pdf(prova_data)
+    else:
+        pdf_buffer = generate_pdf_base(prova_data)
     
     file_name = f"{'gabarito' if is_gabarito else 'prova'}_{prova_id[:8]}.pdf"
     return send_file(pdf_buffer, as_attachment=True, download_name=file_name, mimetype='application/pdf')
