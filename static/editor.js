@@ -22,7 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
         bancoQuestoesLista.innerHTML = '<p>Carregando questões...</p>';
         bancoModal.classList.remove('hidden');
         fetch('/api/questoes')
-            .then(res => res.json())
+            .then(res => {
+                if (!res.ok) throw new Error('Falha ao buscar questões.');
+                return res.json();
+            })
             .then(questoesDoBanco => {
                 bancoQuestoesLista.innerHTML = '';
                 if (questoesDoBanco.length === 0) {
@@ -36,13 +39,18 @@ document.addEventListener('DOMContentLoaded', () => {
                         label.htmlFor = `q-${q.id_questao}`;
                         label.textContent = `${q.enunciado.substring(0, 100)}...`;
                         
-                        questaoEl.innerHTML = `<input type="checkbox" id="q-${q.id_questao}" data-questao-json='${JSON.stringify(q)}'>`;
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.id = `q-${q.id_questao}`;
+                        checkbox.dataset.questaoJson = JSON.stringify(q);
+
+                        questaoEl.appendChild(checkbox);
                         questaoEl.appendChild(label);
                         bancoQuestoesLista.appendChild(questaoEl);
                     });
                 }
             }).catch(err => {
-                bancoQuestoesLista.innerHTML = '<p>Erro ao carregar as questões.</p>';
+                bancoQuestoesLista.innerHTML = `<p style="color: red;">${err.message}</p>`;
             });
     }
 
@@ -129,25 +137,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- EVENT LISTENERS DINÂMICOS (para botões dentro das questões) ---
     questoesContainer.addEventListener('input', (e) => {
         const index = e.target.dataset.index;
-        if (!index) return;
+        if (index === undefined) return;
 
         if (e.target.classList.contains('enunciado-input')) {
             questoes[index].enunciado = e.target.value;
         } else if (e.target.classList.contains('alternativa-input')) {
-            questoes[index].alternativas[e.target.dataset.altIndex] = e.target.value;
+            const altIndex = e.target.dataset.altIndex;
+            questoes[index].alternativas[altIndex] = e.target.value;
         } else if (e.target.classList.contains('resposta-input')) {
             questoes[index].resposta = e.target.value;
         }
     });
 
     questoesContainer.addEventListener('click', (e) => {
-        const index = e.target.dataset.index;
-        if (!index) return;
-        
         if (e.target.classList.contains('remover-questao-btn')) {
+            const index = e.target.dataset.index;
             questoes.splice(index, 1);
             renderizarQuestoes();
         } else if (e.target.classList.contains('salvar-banco-btn')) {
+            const index = e.target.dataset.index;
             salvarQuestaoNoBanco(index);
         }
     });
@@ -200,8 +208,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- INICIALIZAÇÃO E EVENT LISTENERS ESTÁTICOS ---
-    
-    // Carrega a prova se estiver no modo de edição
+    const params = new URLSearchParams(window.location.search);
+    editProvaId = params.get('id');
+
     if (editProvaId) {
         document.getElementById('editor-title').textContent = 'Editar Prova';
         fetch(`/api/provas/${editProvaId}`)
@@ -214,17 +223,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
-    // Adiciona questões manualmente
     document.getElementById('add-multipla-escolha').addEventListener('click', () => adicionarQuestao('multipla_escolha'));
     document.getElementById('add-dissertativa').addEventListener('click', () => adicionarQuestao('dissertativa'));
     document.getElementById('add-vf').addEventListener('click', () => adicionarQuestao('verdadeiro_falso'));
     
-    // Listeners do modal
     addDoBancoBtn.addEventListener('click', abrirModalBanco);
     fecharModalBtn.addEventListener('click', fecharModalBanco);
     adicionarSelecionadasBtn.addEventListener('click', adicionarQuestoesDoBanco);
     bancoModal.addEventListener('click', (event) => {
         if (event.target === bancoModal) { fecharModalBanco(); }
     });
+
+    console.log("Editor script v2 loaded and listeners attached.");
 });
 
