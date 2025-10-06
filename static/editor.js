@@ -1,8 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // ... (elementos do DOM)
+    // --- Seleção dos Elementos do DOM ---
     const questoesContainer = document.getElementById('questoes-container');
     const provaForm = document.getElementById('prova-form');
-    // ... (outros elementos)
     const addDoBancoBtn = document.getElementById('add-do-banco');
     const bancoModal = document.getElementById('banco-modal');
     const fecharModalBtn = document.getElementById('fechar-modal-btn');
@@ -12,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let questoes = [];
     let editProvaId = null;
 
-    // --- LÓGICA EXISTENTE DE CARREGAR PROVA PARA EDIÇÃO ---
+    // --- LÓGICA DE CARREGAR PROVA PARA EDIÇÃO ---
     const params = new URLSearchParams(window.location.search);
     editProvaId = params.get('id');
 
@@ -28,16 +27,14 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
     
-    // --- LÓGICA EXISTENTE DE ADICIONAR QUESTÕES MANUALMENTE ---
+    // --- LÓGICA DE ADICIONAR QUESTÕES MANUALMENTE ---
     document.getElementById('add-multipla-escolha').addEventListener('click', () => adicionarQuestao('multipla_escolha'));
     document.getElementById('add-dissertativa').addEventListener('click', () => adicionarQuestao('dissertativa'));
     document.getElementById('add-vf').addEventListener('click', () => adicionarQuestao('verdadeiro_falso'));
     
-    // --- NOVA LÓGICA DO BANCO DE QUESTÕES ---
-    addDoBancoBtn.addEventListener('click', abrirModalBanco);
-    fecharModalBtn.addEventListener('click', fecharModalBanco);
-    adicionarSelecionadasBtn.addEventListener('click', adicionarQuestoesDoBanco);
-
+    // --- LÓGICA DO BANCO DE QUESTÕES (CORRIGIDA E MELHORADA) ---
+    
+    // Função para abrir o modal
     function abrirModalBanco() {
         bancoQuestoesLista.innerHTML = '<p>Carregando questões...</p>';
         bancoModal.classList.remove('hidden');
@@ -46,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(questoesDoBanco => {
                 bancoQuestoesLista.innerHTML = '';
                 if (questoesDoBanco.length === 0) {
-                    bancoQuestoesLista.innerHTML = '<p>Seu banco de questões está vazio.</p>';
+                    bancoQuestoesLista.innerHTML = '<p>Seu banco de questões está vazio. Salve questões a partir do editor para vê-las aqui.</p>';
                     return;
                 }
                 questoesDoBanco.forEach(q => {
@@ -61,15 +58,27 @@ document.addEventListener('DOMContentLoaded', () => {
             });
     }
 
+    // Função para fechar o modal
     function fecharModalBanco() {
         bancoModal.classList.add('hidden');
     }
+    
+    // Adiciona os "ouvintes" de eventos para os botões do modal
+    addDoBancoBtn.addEventListener('click', abrirModalBanco);
+    fecharModalBtn.addEventListener('click', fecharModalBanco);
+    adicionarSelecionadasBtn.addEventListener('click', adicionarQuestoesDoBanco);
+    
+    // NOVO: Adiciona a funcionalidade de fechar o modal ao clicar fora dele
+    bancoModal.addEventListener('click', (event) => {
+        if (event.target === bancoModal) { // Verifica se o clique foi no fundo escuro
+            fecharModalBanco();
+        }
+    });
 
     function adicionarQuestoesDoBanco() {
         const checkboxes = bancoQuestoesLista.querySelectorAll('input[type="checkbox"]:checked');
         checkboxes.forEach(cb => {
             const questaoData = JSON.parse(cb.dataset.questaoJson);
-            // Removemos IDs para não confundir com o ID da prova
             delete questaoData.id_questao;
             delete questaoData.user_email;
             questoes.push(questaoData);
@@ -78,11 +87,11 @@ document.addEventListener('DOMContentLoaded', () => {
         fecharModalBanco();
     }
     
-    // --- FUNÇÕES DE RENDERIZAÇÃO E MANIPULAÇÃO DE QUESTÕES (ATUALIZADAS) ---
+    // --- FUNÇÕES DE RENDERIZAÇÃO E MANIPULAÇÃO DE QUESTÕES ---
     function adicionarQuestao(tipo) {
         const novaQuestao = { tipo, enunciado: '', alternativas: [], resposta: '' };
         if (tipo === 'multipla_escolha') {
-            novaQuestao.alternativas = ['', '', '', ''];
+            novaQuestao.alternativas = ['', '', '', '', ''];
         }
         questoes.push(novaQuestao);
         renderizarQuestoes();
@@ -113,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="form-group">
                         <label>Resposta Correta</label>
                         <select class="form-control resposta-input" data-index="${index}">
+                            <option value=""></option>
                             <option value="verdadeiro" ${questao.resposta === 'verdadeiro' ? 'selected' : ''}>Verdadeiro</option>
                             <option value="falso" ${questao.resposta === 'falso' ? 'selected' : ''}>Falso</option>
                         </select>
@@ -126,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             questaoCard.innerHTML = `
-                <h4>Questão ${index + 1} (${questao.tipo.replace('_', ' ')})</h4>
+                <h4>Questão ${index + 1} (${questao.tipo.replace(/_/g, ' ')})</h4>
                 <div class="form-group">
                     <label>Enunciado</label>
                     <textarea class="form-control enunciado-input" data-index="${index}" rows="3" required>${escapeHTML(questao.enunciado)}</textarea>
@@ -140,10 +150,15 @@ document.addEventListener('DOMContentLoaded', () => {
             questoesContainer.appendChild(questaoCard);
         });
         
-        // Adiciona os event listeners após criar os elementos
-        document.querySelectorAll('.enunciado-input').forEach(el => el.addEventListener('change', e => questoes[e.target.dataset.index].enunciado = e.target.value));
-        document.querySelectorAll('.alternativa-input').forEach(el => el.addEventListener('change', e => questoes[e.target.dataset.index].alternativas[e.target.dataset.altIndex] = e.target.value));
-        document.querySelectorAll('.resposta-input').forEach(el => el.addEventListener('change', e => questoes[e.target.dataset.index].resposta = e.target.value));
+        document.querySelectorAll('.enunciado-input').forEach(el => el.addEventListener('input', e => {
+            questoes[e.target.dataset.index].enunciado = e.target.value;
+        }));
+        document.querySelectorAll('.alternativa-input').forEach(el => el.addEventListener('input', e => {
+            questoes[e.target.dataset.index].alternativas[e.target.dataset.altIndex] = e.target.value;
+        }));
+        document.querySelectorAll('.resposta-input').forEach(el => el.addEventListener('input', e => {
+            questoes[e.target.dataset.index].resposta = e.target.value;
+        }));
     }
 
     window.removerQuestao = (index) => {
@@ -166,16 +181,14 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(data => {
             if (data.success) {
                 alert('Questão salva no seu banco com sucesso!');
-            } else {
-                throw new Error(data.error || 'Erro desconhecido');
-            }
+            } else { throw new Error(data.error || 'Erro desconhecido'); }
         })
         .catch(err => {
             alert('Erro ao salvar a questão: ' + err.message);
         });
     };
     
-    // --- LÓGICA EXISTENTE DE SALVAR A PROVA ---
+    // --- LÓGICA DE SALVAR A PROVA ---
     provaForm.addEventListener('submit', (e) => {
         e.preventDefault();
         const provaData = {
@@ -195,14 +208,12 @@ document.addEventListener('DOMContentLoaded', () => {
         .then(response => {
             if (response.ok) {
                 window.location.href = '/dashboard';
-            } else {
-                alert('Erro ao salvar a prova.');
-            }
+            } else { alert('Erro ao salvar a prova.'); }
         });
     });
 
     function escapeHTML(str) {
-        if (!str) return '';
+        if (str === null || str === undefined) return '';
         const p = document.createElement('p');
         p.textContent = str;
         return p.innerHTML;
