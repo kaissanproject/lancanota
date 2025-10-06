@@ -22,23 +22,34 @@ def get_sheets():
     provas_sheet = sheet.worksheet("provas")
     return users_sheet, provas_sheet
 
-# --- Funções Auxiliares para PDF (sem alterações) ---
+# --- Funções Auxiliares para PDF (CORRIGIDA) ---
 def draw_multiline_text(canvas, text, x, y, max_width):
+    """Desenha texto com múltiplas linhas e retorna o objeto de texto e a contagem de linhas."""
     text_object = canvas.beginText(x, y)
+    line_count = 0
+    # Processa cada linha que já vem do textarea (quebras de linha do usuário)
     for line in text.splitlines():
+        # Se a linha do usuário for muito longa, quebra em palavras
         if canvas.stringWidth(line) > max_width:
             words = line.split()
-            line = ''
+            current_line = ''
             for word in words:
-                if canvas.stringWidth(line + word) < max_width:
-                    line += word + ' '
+                # Se a palavra cabe na linha atual, adiciona
+                if canvas.stringWidth(current_line + word) < max_width:
+                    current_line += word + ' '
+                # Se não cabe, escreve a linha atual e começa uma nova
                 else:
-                    text_object.textLine(line)
-                    line = word + ' '
-            text_object.textLine(line)
+                    text_object.textLine(current_line)
+                    line_count += 1
+                    current_line = word + ' '
+            # Escreve o que sobrou da linha
+            text_object.textLine(current_line)
+            line_count += 1
+        # Se a linha do usuário já cabe, escreve direto
         else:
             text_object.textLine(line)
-    return text_object
+            line_count += 1
+    return text_object, line_count
 
 def generate_pdf_base(prova_data, is_gabarito=False):
     buffer = io.BytesIO()
@@ -63,10 +74,14 @@ def generate_pdf_base(prova_data, is_gabarito=False):
             p.showPage()
             p.setFont("Helvetica", 11)
             y_position = height - margin
+        
         enunciado = f"{q_num}. {questao['enunciado']}"
-        text_obj = draw_multiline_text(p, enunciado, margin, y_position, width - 2 * margin)
+        # A função agora retorna o objeto de texto E o número de linhas
+        text_obj, line_count = draw_multiline_text(p, enunciado, margin, y_position, width - 2 * margin)
         p.drawText(text_obj)
-        y_position -= (len(text_obj.get_text()) + 1) * 14
+        # Ajusta a posição Y com base no número de linhas calculado
+        y_position -= (line_count) * 14
+
         if questao['tipo'] == 'multipla_escolha':
             letras = ['a', 'b', 'c', 'd', 'e']
             for i, alt in enumerate(questao['alternativas']):
@@ -77,12 +92,14 @@ def generate_pdf_base(prova_data, is_gabarito=False):
             y_position -= 20
         elif questao['tipo'] == 'dissertativa':
             y_position -= 1 * inch
+        
         if is_gabarito:
             p.setFont("Helvetica-Bold", 10)
             resposta_correta = questao.get('resposta', '')
             p.drawString(margin, y_position, f"RESPOSTA: {resposta_correta}")
             y_position -= 20
             p.setFont("Helvetica", 11)
+        
         y_position -= 0.5 * inch
         q_num += 1
     p.save()
@@ -169,11 +186,13 @@ def get_provas():
     user_provas = [p for p in all_provas if p['user_email'] == user_email]
 
     for prova in user_provas:
-        prova['questoes'] = json.loads(prova['questoes']) if prova['questoes'] else []
+        try:
+            prova['questoes'] = json.loads(prova['questoes']) if prova['questoes'] else []
+        except json.JSONDecodeError:
+            prova['questoes'] = [] # Lida com dados malformados na planilha
 
     return jsonify(user_provas)
 
-# FUNÇÃO CORRIGIDA - busca os dados de forma mais segura
 def get_prova_data_by_id(prova_id, user_email):
     """Busca os dados de uma prova específica e verifica a permissão do usuário."""
     _, provas_sheet = get_sheets()
@@ -181,14 +200,18 @@ def get_prova_data_by_id(prova_id, user_email):
     if not cell:
         return None
     
-    # Busca a linha inteira para verificar o e-mail
     row_values = provas_sheet.row_values(cell.row)
-    if row_values[1] != user_email: # Coluna 2 (índice 1) é o user_email
+    if row_values[1] != user_email: 
         return None
         
     headers = provas_sheet.row_values(1)
     prova_data = dict(zip(headers, row_values))
-    prova_data['questoes'] = json.loads(prova_data['questoes']) if prova_data['questoes'] else []
+    
+    try:
+        prova_data['questoes'] = json.loads(prova_data['questoes']) if prova_data['questoes'] else []
+    except json.JSONDecodeError:
+        prova_data['questoes'] = []
+
     return prova_data
 
 @app.route('/api/provas/<prova_id>', methods=['GET'])
@@ -238,7 +261,6 @@ def delete_prova(prova_id):
     provas_sheet.delete_rows(cell.row)
     return jsonify({"success": True}), 200
 
-# ROTA CORRIGIDA - usa a nova função para buscar os dados
 @app.route('/api/provas/<prova_id>/pdf')
 @app.route('/api/provas/<prova_id>/gabarito')
 def get_pdf(prova_id):
