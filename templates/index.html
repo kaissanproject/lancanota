@@ -12,38 +12,42 @@
 <body>
     <div class="login-container">
         <div class="form-container">
-            <!-- Formulário de Login -->
+            <!-- Formulário de Login (inicialmente visível) -->
             <form id="login-form">
                 <h1>Bem-vindo de volta!</h1>
                 <p>Faça login para acessar suas provas.</p>
-                <div id="login-error" class="error-message" style="display: none;"></div>
                 <div class="form-group">
                     <label for="login-email">E-mail</label>
                     <input type="email" id="login-email" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="login-password">Senha</label>
-                    <input type="password" id="login-password" class="form-control" required>
+                    <label for="login-senha">Senha</label>
+                    <input type="password" id="login-senha" class="form-control" required>
                 </div>
                 <button type="submit" class="button button-primary" style="width: 100%;">Entrar</button>
-                <p class="form-toggle">Não tem uma conta? <a href="#" id="show-register">Cadastre-se</a></p>
+                <p id="login-error" class="error-message hidden"></p>
+                <div class="form-toggle">
+                    Não tem uma conta? <a href="#" id="show-register">Cadastre-se</a>
+                </div>
             </form>
 
-            <!-- Formulário de Cadastro (escondido) -->
-            <form id="register-form" style="display: none;">
-                <h1>Crie sua Conta</h1>
+            <!-- Formulário de Cadastro (inicialmente escondido) -->
+            <form id="register-form" class="hidden">
+                <h1>Crie sua conta</h1>
                 <p>É rápido e fácil.</p>
-                <div id="register-error" class="error-message" style="display: none;"></div>
                 <div class="form-group">
                     <label for="register-email">E-mail</label>
                     <input type="email" id="register-email" class="form-control" required>
                 </div>
                 <div class="form-group">
-                    <label for="register-password">Senha</label>
-                    <input type="password" id="register-password" class="form-control" required>
+                    <label for="register-senha">Senha</label>
+                    <input type="password" id="register-senha" class="form-control" required>
                 </div>
                 <button type="submit" class="button button-primary" style="width: 100%;">Cadastrar</button>
-                <p class="form-toggle">Já tem uma conta? <a href="#" id="show-login">Faça login</a></p>
+                 <p id="register-error" class="error-message hidden"></p>
+                <div class="form-toggle">
+                    Já tem uma conta? <a href="#" id="show-login">Faça login</a>
+                </div>
             </form>
         </div>
     </div>
