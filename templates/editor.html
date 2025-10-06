@@ -1,62 +1,38 @@
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editor de Prova - Lança Notas</title>
-    <link rel="stylesheet" href="/static/style.css">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-</head>
-<body>
-    <header class="app-header">
-        <h1>Lança Notas</h1>
-        <div>
-            <a href="/dashboard" class="button button-secondary">Voltar ao Dashboard</a>
-            <button id="logout-btn" class="button button-secondary">Sair</button>
+{% extends "layout.html" %}
+
+{% block title %}Editor de Prova - Lança Notas{% endblock %}
+
+{% block content %}
+<h2 id="editor-title">Criar Nova Prova</h2>
+
+<form id="prova-form">
+    <div class="editor-card">
+        <div class="form-group">
+            <label for="prova-titulo">Título da Prova</label>
+            <input type="text" id="prova-titulo" class="form-control" required>
         </div>
-    </header>
-
-    <main class="container">
-        <div class="card">
-            <h2 id="editor-title">Criar Nova Prova</h2>
-            <form id="prova-form">
-                <div class="form-group">
-                    <label for="prova-titulo">Título da Prova</label>
-                    <input type="text" id="prova-titulo" class="form-control" placeholder="Ex: Avaliação de Português - 1º Bimestre" required>
-                </div>
-                <div class="form-group">
-                    <label for="prova-cabecalho">Cabeçalho</label>
-                    <textarea id="prova-cabecalho" class="form-control" rows="4" placeholder="Ex: Nome do Aluno:&#10;Data:&#10;Turma:"></textarea>
-                </div>
-
-                <h3>Questões</h3>
-                <div id="questoes-container">
-                    <!-- As questões serão adicionadas aqui -->
-                </div>
-
-                <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
-                    <button type="button" id="add-multipla-escolha" class="button button-secondary">Add. Múltipla Escolha</button>
-                    <button type="button" id="add-dissertativa" class="button button-secondary">Add. Dissertativa</button>
-                    <button type="button" id="add-vf" class="button button-secondary">Add. V ou F</button>
-                </div>
-
-                <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border-color);">
-
-                <button type="submit" id="salvar-prova-btn" class="button button-primary">Salvar Prova</button>
-            </form>
+        <div class="form-group">
+            <label for="prova-cabecalho">Cabeçalho (Nome, Turma, Data, etc.)</label>
+            <textarea id="prova-cabecalho" class="form-control" rows="4"></textarea>
         </div>
-    </main>
+    </div>
 
-    <script src="/static/editor.js"></script>
-    <script>
-         // Colocando o listener do logout aqui também para consistência
-         document.getElementById('logout-btn').addEventListener('click', () => {
-            fetch('/api/logout', { method: 'POST' })
-                .then(() => window.location.href = '/');
-        });
-    </script>
-</body>
-</html>
+    <h3>Questões</h3>
+    <div class="questoes-header">
+        <button type="button" id="add-multipla-escolha" class="button button-secondary">Add. Múltipla Escolha</button>
+        <button type="button" id="add-dissertativa" class="button button-secondary">Add. Dissertativa</button>
+        <button type="button" id="add-vf" class="button button-secondary">Add. V ou F</button>
+    </div>
+
+    <div id="questoes-container">
+        <!-- As questões serão adicionadas aqui -->
+    </div>
+
+    <button type="submit" id="salvar-prova-btn" class="button button-primary" style="margin-top: 1rem;">Salvar Prova</button>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='editor.js') }}"></script>
+{% endblock %}
 
