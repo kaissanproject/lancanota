@@ -22,6 +22,7 @@
         <button type="button" id="add-multipla-escolha" class="button button-secondary">Add. Múltipla Escolha</button>
         <button type="button" id="add-dissertativa" class="button button-secondary">Add. Dissertativa</button>
         <button type="button" id="add-vf" class="button button-secondary">Add. V ou F</button>
+        <button type="button" id="add-do-banco" class="button button-success">Adicionar do Banco</button>
     </div>
 
     <div id="questoes-container">
@@ -30,6 +31,22 @@
 
     <button type="submit" id="salvar-prova-btn" class="button button-primary" style="margin-top: 1rem;">Salvar Prova</button>
 </form>
+
+<!-- Modal do Banco de Questões (inicialmente escondido) -->
+<div id="banco-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Seu Banco de Questões</h3>
+            <button type="button" id="fechar-modal-btn" class="close-button">&times;</button>
+        </div>
+        <div id="banco-questoes-lista" class="modal-body">
+            <!-- Lista de questões do banco será carregada aqui -->
+        </div>
+        <div class="modal-footer">
+            <button type="button" id="adicionar-selecionadas-btn" class="button button-primary">Adicionar Selecionadas</button>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
