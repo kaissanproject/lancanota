@@ -206,7 +206,7 @@ body {
 }
 
 .alternativas-group { margin-top: 1rem; }
-.hidden { display: none; }
+
 .dissertativa-aviso { color: var(--secondary-color); font-style: italic; }
 .alternativas-correcao { margin: 1rem 0; display: flex; gap: 1rem; }
 
@@ -282,5 +282,10 @@ body {
     padding-top: 1rem;
     margin-top: 1rem;
     text-align: right;
+}
+
+/* --- FIX: Garante que o modal sempre comece escondido e corrige o bug --- */
+.hidden {
+    display: none !important;
 }
 
