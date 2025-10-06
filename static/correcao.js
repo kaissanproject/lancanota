@@ -1,141 +1,158 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const provaTituloEl = document.getElementById('prova-titulo');
-    const setupCorrecaoEl = document.getElementById('setup-correcao');
-    const nomeAlunoInput = document.getElementById('nome-aluno');
-    const iniciarCorrecaoBtn = document.getElementById('iniciar-correcao-btn');
-    const interfaceQuestaoEl = document.getElementById('interface-questao');
-    const resultadoCorrecaoEl = document.getElementById('resultado-correcao');
-    const resultadoTextoEl = document.getElementById('resultado-texto');
-    const corrigirOutraBtn = document.getElementById('corrigir-outra-btn');
+    const correcaoContainer = document.getElementById('correcao-container');
+    const tituloProvaEl = document.getElementById('titulo-prova');
+    const nomeAlunoForm = document.getElementById('nome-aluno-form');
+    const nomeAlunoInput = document.getElementById('nome-aluno-input');
+    const questaoDisplay = document.getElementById('questao-display');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const provaId = urlParams.get('prova_id');
 
     let provaData = null;
-    let respostasAluno = {};
+    let respostasAluno = [];
     let questaoAtualIndex = 0;
-    
-    const params = new URLSearchParams(window.location.search);
-    const provaId = params.get('id');
 
     if (!provaId) {
-        alert('ID da prova não encontrado.');
-        window.location.href = '/dashboard';
+        correcaoContainer.innerHTML = '<h2>Erro: ID da prova não fornecido.</h2>';
         return;
     }
 
-    // Carrega os dados da prova
-    fetch(`/api/provas/${provaId}`)
-        .then(response => response.ok ? response.json() : Promise.reject('Prova não encontrada'))
-        .then(data => {
-            provaData = data;
-            provaTituloEl.textContent = `Corrigindo: ${provaData.titulo}`;
-        })
-        .catch(error => {
-            console.error('Erro ao carregar prova:', error);
-            alert('Não foi possível carregar a prova para correção.');
-        });
+    // --- LÓGICA PRINCIPAL ---
 
-    iniciarCorrecaoBtn.addEventListener('click', () => {
-        if (!nomeAlunoInput.value.trim()) {
-            alert('Por favor, digite o nome do aluno.');
-            return;
-        }
-        setupCorrecaoEl.classList.add('hidden');
-        interfaceQuestaoEl.classList.remove('hidden');
+    function iniciarCorrecao() {
+        nomeAlunoForm.classList.add('hidden');
+        questaoDisplay.classList.remove('hidden');
         renderizarQuestao();
-    });
-
-    corrigirOutraBtn.addEventListener('click', () => {
-        questaoAtualIndex = 0;
-        respostasAluno = {};
-        nomeAlunoInput.value = '';
-        resultadoCorrecaoEl.classList.add('hidden');
-        setupCorrecaoEl.classList.remove('hidden');
-    });
+    }
 
     function renderizarQuestao() {
+        // **INÍCIO DA CORREÇÃO**
+        // Verifica se a prova tem questões antes de continuar
+        if (!provaData || !Array.isArray(provaData.questoes) || provaData.questoes.length === 0) {
+            finalizarCorrecao(true); // Finaliza informando que não há questões
+            return;
+        }
+        // **FIM DA CORREÇÃO**
+
         if (questaoAtualIndex >= provaData.questoes.length) {
             finalizarCorrecao();
             return;
         }
 
         const questao = provaData.questoes[questaoAtualIndex];
-        let inputHtml = '';
+        let alternativasHtml = '';
 
         if (questao.tipo === 'multipla_escolha') {
             const letras = ['a', 'b', 'c', 'd', 'e'];
-            inputHtml = `<div class="alternativas-correcao">` +
-                questao.alternativas.map((alt, i) => 
-                    `<button class="button button-secondary" data-resposta="${letras[i]}">${letras[i].toUpperCase()}</button>`
-                ).join('') + `</div>`;
+            alternativasHtml = questao.alternativas.map((alt, i) =>
+                `<button class="button button-secondary resposta-btn" data-resposta="${letras[i]}">${letras[i].toUpperCase()}) ${escapeHTML(alt)}</button>`
+            ).join('');
         } else if (questao.tipo === 'verdadeiro_falso') {
-            inputHtml = `<div class="alternativas-correcao">
-                <button class="button button-secondary" data-resposta="verdadeiro">Verdadeiro</button>
-                <button class="button button-secondary" data-resposta="falso">Falso</button>
-            </div>`;
+            alternativasHtml = `
+                <button class="button button-secondary resposta-btn" data-resposta="verdadeiro">Verdadeiro</button>
+                <button class="button button-secondary resposta-btn" data-resposta="falso">Falso</button>
+            `;
         } else if (questao.tipo === 'dissertativa') {
-            inputHtml = `<p class="dissertativa-aviso">Correção de questões dissertativas não é automática. Clique em 'Próxima' para pular.</p>`;
+            alternativasHtml = `<p class="dissertativa-aviso">Questão dissertativa, correção manual. Clique para pular.</p>
+                                <button class="button button-secondary resposta-btn" data-resposta="">Pular Questão</button>`;
         }
 
-        interfaceQuestaoEl.innerHTML = `
+        questaoDisplay.innerHTML = `
             <div class="questao-card-correcao">
-                <h4>Questão ${questaoAtualIndex + 1}</h4>
+                <h4>Questão ${questaoAtualIndex + 1} de ${provaData.questoes.length}</h4>
                 <p>${escapeHTML(questao.enunciado)}</p>
-                ${inputHtml}
-                <button id="proxima-btn" class="button button-primary">Próxima Questão</button>
+                <div class="alternativas-correcao">
+                    ${alternativasHtml}
+                </div>
             </div>
         `;
-
-        // Adiciona eventos aos botões de resposta
-        interfaceQuestaoEl.querySelectorAll('[data-resposta]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                respostasAluno[questaoAtualIndex] = btn.dataset.resposta;
-                renderizarProximaQuestao();
-            });
-        });
-        
-        document.getElementById('proxima-btn').addEventListener('click', renderizarProximaQuestao);
     }
 
-    function renderizarProximaQuestao() {
-        questaoAtualIndex++;
-        renderizarQuestao();
-    }
+    function finalizarCorrecao(semQuestoes = false) {
+        if (semQuestoes) {
+            questaoDisplay.innerHTML = `
+                <div class="questao-card-correcao">
+                    <h3>Prova Finalizada</h3>
+                    <p>Esta prova não contém questões para corrigir.</p>
+                    <a href="/dashboard" class="button button-primary">Voltar ao Dashboard</a>
+                </div>`;
+            return;
+        }
 
-    function finalizarCorrecao() {
-        interfaceQuestaoEl.classList.add('hidden');
-        resultadoCorrecaoEl.classList.remove('hidden');
-        resultadoTextoEl.textContent = 'Calculando nota...';
-
-        const dadosCorrecao = {
-            nome_aluno: nomeAlunoInput.value,
-            respostas: respostasAluno
-        };
-
+        const nomeAluno = nomeAlunoInput.value;
         fetch(`/api/provas/${provaId}/corrigir`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(dadosCorrecao)
+            body: JSON.stringify({ nome_aluno: nomeAluno, respostas: respostasAluno })
         })
-        .then(response => response.json())
+        .then(res => res.json())
         .then(resultado => {
-            if(resultado.success) {
-                 resultadoTextoEl.innerHTML = `
-                    <strong>Aluno(a):</strong> ${escapeHTML(resultado.nome_aluno)}<br>
-                    <strong>Acertos:</strong> ${resultado.acertos} de ${resultado.total_questoes} questões objetivas.<br>
-                    <strong>Resultado salvo com sucesso!</strong>
-                 `;
-            } else {
-                throw new Error(resultado.error || 'Erro desconhecido');
-            }
-        })
-        .catch(error => {
-            console.error('Erro ao finalizar correção:', error);
-            resultadoTextoEl.textContent = 'Ocorreu um erro ao salvar o resultado.';
+            questaoDisplay.innerHTML = `
+                <div class="questao-card-correcao">
+                    <h3>Correção Finalizada!</h3>
+                    <p><strong>Aluno:</strong> ${escapeHTML(resultado.nome_aluno)}</p>
+                    <p><strong>Nota:</strong> ${resultado.acertos} de ${resultado.total_questoes} questões corretas.</p>
+                    <div class="button-group">
+                        <a href="/dashboard" class="button button-primary">Voltar ao Dashboard</a>
+                        <button id="corrigir-outra-btn" class="button button-secondary">Corrigir Outra Prova</button>
+                    </div>
+                </div>
+            `;
         });
     }
 
+    // --- EVENT LISTENERS ---
+
+    nomeAlunoForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        if (nomeAlunoInput.value.trim()) {
+            iniciarCorrecao();
+        } else {
+            alert('Por favor, insira o nome do aluno.');
+        }
+    });
+
+    questaoDisplay.addEventListener('click', (e) => {
+        if (e.target.classList.contains('resposta-btn')) {
+            respostasAluno.push(e.target.dataset.resposta);
+            questaoAtualIndex++;
+            renderizarQuestao();
+        }
+        if (e.target.id === 'corrigir-outra-btn') {
+            // Reinicia o processo
+            respostasAluno = [];
+            questaoAtualIndex = 0;
+            nomeAlunoInput.value = '';
+            nomeAlunoForm.classList.remove('hidden');
+            questaoDisplay.classList.add('hidden');
+        }
+    });
+
+    // --- INICIALIZAÇÃO ---
+
+    fetch(`/api/provas/${provaId}`)
+        .then(response => {
+            if (!response.ok) throw new Error('Prova não encontrada.');
+            return response.json();
+        })
+        .then(data => {
+            // **INÍCIO DA CORREÇÃO**
+            if (!data || !Array.isArray(data.questoes)) {
+                throw new Error('Os dados recebidos da prova são inválidos.');
+            }
+            // **FIM DA CORREÇÃO**
+            provaData = data;
+            tituloProvaEl.textContent = `Corrigindo: ${escapeHTML(provaData.titulo)}`;
+        })
+        .catch(error => {
+            correcaoContainer.innerHTML = `<h2>Erro ao carregar prova</h2><p>${error.message}</p><a href="/dashboard">Voltar</a>`;
+        });
+
     function escapeHTML(str) {
+        if (!str) return '';
         const p = document.createElement('p');
         p.textContent = str;
         return p.innerHTML;
     }
 });
+
