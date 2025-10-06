@@ -1,6 +1,6 @@
 // --- Função principal que inicializa todo o editor ---
 function inicializarEditor() {
-    console.log("Editor script v3 inicializando...");
+    console.log("Editor script v4 (final) inicializando...");
 
     // --- Seleção dos Elementos do DOM ---
     const questoesContainer = document.getElementById('questoes-container');
@@ -119,7 +119,6 @@ function inicializarEditor() {
     
     // --- ATRIBUIÇÃO DE EVENT LISTENERS ---
     
-    // Listeners estáticos (sempre presentes na página)
     document.getElementById('add-multipla-escolha').addEventListener('click', () => adicionarQuestao('multipla_escolha'));
     document.getElementById('add-dissertativa').addEventListener('click', () => adicionarQuestao('dissertativa'));
     document.getElementById('add-vf').addEventListener('click', () => adicionarQuestao('verdadeiro_falso'));
@@ -143,7 +142,6 @@ function inicializarEditor() {
             .then(res => { if (res.ok) window.location.href = '/dashboard'; else alert('Erro ao salvar prova.'); });
     });
 
-    // Listeners dinâmicos (para elementos que são criados/destruídos)
     questoesContainer.addEventListener('input', (e) => {
         const index = e.target.dataset.index;
         if (index === undefined) return;
@@ -179,7 +177,6 @@ function inicializarEditor() {
     }
 }
 
-// Garante que o script só rode depois que a página inteira carregar.
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', inicializarEditor);
 } else {
