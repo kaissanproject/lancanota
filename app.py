@@ -4,7 +4,6 @@ import json
 import uuid
 from flask import Flask, render_template, request, jsonify, send_file, session, redirect, url_for
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch
@@ -14,18 +13,14 @@ app = Flask(__name__)
 # Chave secreta para gerenciar sessões de login
 app.secret_key = os.urandom(24) 
 
-# --- Configuração do Google Sheets ---
+# --- Configuração do Google Sheets (MÉTODO ATUALIZADO) ---
 def get_sheets():
     """Conecta-se à API do Google Sheets e retorna as planilhas."""
-    scope = ["https://spreadsheets.google.com/feeds", 'https://www.googleapis.com/auth/spreadsheets',
-             "https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/drive"]
-    
-    # Usa o arquivo de credenciais
-    creds = ServiceAccountCredentials.from_json_keyfile_name("google_credentials.json", scope)
-    client = gspread.authorize(creds)
+    # gspread agora usa google-auth para encontrar as credenciais
+    gc = gspread.service_account(filename="google_credentials.json")
     
     # Abre a planilha pelo nome. Certifique-se de que o nome aqui é o mesmo da sua planilha.
-    sheet = client.open("LancaNotas-DB") 
+    sheet = gc.open("LancaNotas-DB") 
     
     users_sheet = sheet.worksheet("usuarios")
     provas_sheet = sheet.worksheet("provas")
